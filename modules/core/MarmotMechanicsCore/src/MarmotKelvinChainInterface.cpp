@@ -23,11 +23,15 @@ namespace Marmot::Materials {
                                  StateVarMatrix_Ju stateVars_Ju,
                                  double&           uniaxialCompliance_Ju,
                                  Vector3d&         dJumpU,
-                                 const double      factor )
+                                 const double      factor,
+                                 const double      h)
     {
       for ( int i = 0; i < retardationTimes_Ju.size(); i++ ) {
         const double& tau = retardationTimes_Ju( i );
         const double& D   = elasticModuli_Ju( i );
+        //std::cout<<"EvaluateKelvinChain_Ju D,i: "<<i<<'\n';
+        //std::cout<<"tau: "<<tau<<'\n';
+        //std::cout<<"D: "<< D<<'\n';
 
         double lambda, beta;
         computeLambdaAndBeta( dT, tau, lambda, beta );
@@ -60,7 +64,8 @@ namespace Marmot::Materials {
                                   Properties                retardationTimes_Ju,
                                   Ref< StateVarMatrix_Ju >  stateVars_Ju,
                                   const Vector3d&           dforce,
-                                  const Matrix3d&           unitH_ij )
+                                  const Matrix3d&           unitH_ij,
+                                  const double              h)
     {
 
       if ( dT <= 1e-14 )
@@ -68,8 +73,19 @@ namespace Marmot::Materials {
       for ( int i = 0; i < retardationTimes_Ju.size(); i++ ) {
         const double& tau = retardationTimes_Ju( i );
         const double& D   = elasticModuli_Ju( i );
+        //std::cout<<"updatestatevarsmatrixjU D,i: "<<i<<'\n';
+        //std::cout<<D<<'\n';
         double        lambda, beta;
         computeLambdaAndBeta( dT, tau, lambda, beta );
+        static bool printed2 = false;
+        //if(!printed2)
+        //{ 
+        //std::cout<<"unitC_bar_tensor\n"<<unitC_bar_tensor<<"\n";
+        //std::cout<<"unitQ_tensor:\n"<<unit_tensor<<"\n";
+        //std::cout<<"unitH_ij_tensor:\n"<<unitH_ij<<"\n";    
+        //printed2 = true;
+        //}
+
         stateVars_Ju.col( i ) = ( lambda / D ) * unitH_ij * dforce + beta * stateVars_Ju.col( i );
       }
     }

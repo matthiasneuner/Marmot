@@ -26,7 +26,7 @@
  */
 
 #pragma once
-#include "MarmotKelvinChain.h"
+#include "Marmot/MarmotKelvinChain.h"
 #include "Marmot/MarmotNumericalIntegration.h"
 #include "Marmot/MarmotTypedefs.h"
 #include "autodiff/forward/real.hpp"
@@ -47,25 +47,32 @@ namespace Marmot::Materials {
     typedef Eigen::Map< StateVarMatrix_Ju >               mapStateVarMatrix_Ju;
     typedef Eigen::Map< StateVarMatrix_Js >               mapStateVarMatrix_Js;
     
-    using namespace KelvinChain;
+    //using namespace KelvinChain;
     
     template < int k >
     Properties computeElasticModuli_Ju( std::function< autodiff::Real< k, double >( autodiff::Real< k, double > ) > phi,
                                      Properties retardationTimes_Ju,
                                      bool       gaussQuadrature = false )
-    {
+    { 
+      //std::cout<<"inside computeElasticModuli Hello!!!\n";
       Properties elasticModuli_Ju( retardationTimes_Ju.size() );
       double     spacing = retardationTimes_Ju( 1 ) / retardationTimes_Ju( 0 );
+      //std::cout<<"spacing: "<< spacing<<"\n";
       for ( int i = 0; i < retardationTimes_Ju.size(); i++ ) {
         double tau = retardationTimes_Ju( i );
         if ( !gaussQuadrature ) {
-          elasticModuli_Ju( i ) = 1. / ( log( spacing ) * evaluatePostWidderFormula< k >( phi, tau ) );
+          //std::cout<<"retardationTimes_Ju "<<i <<": "<<retardationTimes_Ju(i)<<'\n';
+          //std::cout<<"Value from evaluatePostWidderFormula: "<<KelvinChain::evaluatePostWidderFormula< k >( phi, tau )<<'\n';
+      
+          elasticModuli_Ju( i ) = 1. / ( log( spacing ) * KelvinChain::evaluatePostWidderFormula< k >( phi, tau ) );
+          //std::cout<<"elasticModuli_Ju "<<i <<": "<<elasticModuli_Ju(i)<<'\n';
+      
         }
         else {
           elasticModuli_Ju( i ) = 1. /
                                ( log( spacing ) / 2. *
-                                 ( evaluatePostWidderFormula< k >( phi, tau * pow( spacing, -sqrt( 3. ) / 6. ) ) +
-                                   evaluatePostWidderFormula< k >( phi, tau * pow( spacing, sqrt( 3. ) / 6. ) ) ) );
+                                 ( KelvinChain::evaluatePostWidderFormula< k >( phi, tau * pow( spacing, -sqrt( 3. ) / 6. ) ) +
+                                   KelvinChain::evaluatePostWidderFormula< k >( phi, tau * pow( spacing, sqrt( 3. ) / 6. ) ) ) );
         }
       }
 
@@ -83,13 +90,13 @@ namespace Marmot::Materials {
       for ( int i = 0; i < retardationTimes_Js.size(); i++ ) {
         double tau = retardationTimes_Js( i );
         if ( !gaussQuadrature ) {
-          elasticModuli_Js( i ) = 1. / ( log( spacing ) * evaluatePostWidderFormula< k >( phi, tau ) );
+          elasticModuli_Js( i ) = 1. / ( log( spacing ) * KelvinChain::evaluatePostWidderFormula< k >( phi, tau ) );
         }
         else {
           elasticModuli_Js( i ) = 1. /
                                ( log( spacing ) / 2. *
-                                 ( evaluatePostWidderFormula< k >( phi, tau * pow( spacing, -sqrt( 3. ) / 6. ) ) +
-                                   evaluatePostWidderFormula< k >( phi, tau * pow( spacing, sqrt( 3. ) / 6. ) ) ) );
+                                 ( KelvinChain::evaluatePostWidderFormula< k >( phi, tau * pow( spacing, -sqrt( 3. ) / 6. ) ) +
+                                   KelvinChain::evaluatePostWidderFormula< k >( phi, tau * pow( spacing, sqrt( 3. ) / 6. ) ) ) );
         }
       }
 
@@ -103,7 +110,8 @@ namespace Marmot::Materials {
                                      Properties                      retardationTimes_Ju,
                                      Eigen::Ref< StateVarMatrix_Ju > stateVars_Ju,
                                      const Marmot::Vector3d&         dforce,
-                                     const Marmot::Matrix3d&         unitH_ij );
+                                     const Marmot::Matrix3d&         unitH_ij,
+                                     const double                    h);
 
     void updateStateVarMatrix_Js(    const double                 dT,
                                      Properties                   elasticModuli_Js,
@@ -118,7 +126,9 @@ namespace Marmot::Materials {
                                     StateVarMatrix_Ju    stateVars_Ju,
                                     double&              uniaxialCompliance_Ju,
                                     Marmot::Vector3d&    dJumpu,
-                                    const double         factor );
+                                    const double         factor,
+                                    const double         h 
+                                    );
 
     void evaluateKelvinChain_Js(    const double         dT,
                                     Properties           elasticModuli_Js,

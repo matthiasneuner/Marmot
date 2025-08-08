@@ -104,8 +104,8 @@ namespace Marmot::Materials {
 
     public:
       inline const static auto layout = makeLayout( {
-        { .name = "kelvinStateVars_Ju", .length = 0 },
-        { .name = "kelvinStateVars_Js", .length = 0 },
+        { .name = "kelvinStateVars_Ju", .length = 3*2 },
+        { .name = "kelvinStateVars_Js", .length = 9*2 },
       } );
 
       KelvinChainInterface::mapStateVarMatrix_Ju kelvinStateVars_Ju;
@@ -117,6 +117,7 @@ namespace Marmot::Materials {
           kelvinStateVars_Js( &find( "kelvinStateVars_Js" ), 9, nKelvinUnits_Js )
           {};
     };
+
     ::std::unique_ptr< LinearViscoElasticInterfaceStateVarManager > stateVarManager;
 
   public:

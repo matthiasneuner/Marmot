@@ -55,7 +55,6 @@ namespace Marmot::Materials {
     double evaluatePostWidderFormula( std::function< autodiff::Real< k, double >( autodiff::Real< k, double > ) > phi,
                                       double                                                                      tau )
     {
-
       autodiff::Real< k, double > tau_( tau * k );
 
       double val = -pow( -tau * k, k ) / double( Factorial< k - 1 >::value );

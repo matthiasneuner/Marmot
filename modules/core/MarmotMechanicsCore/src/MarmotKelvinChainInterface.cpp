@@ -70,14 +70,14 @@ namespace Marmot::Materials {
 
       if ( dT <= 1e-14 )
         return;
+      //std::cout<<"SIZE retardation_times_Ju: "<<retardationTimes_Ju.size()<<"\n";
       for ( int i = 0; i < retardationTimes_Ju.size(); i++ ) {
         const double& tau = retardationTimes_Ju( i );
         const double& D   = elasticModuli_Ju( i );
         //std::cout<<"updatestatevarsmatrixjU D,i: "<<i<<'\n';
-        //std::cout<<D<<'\n';
+        //std::cout<<"D(i): "<<D<<'\n';
         double        lambda, beta;
         computeLambdaAndBeta( dT, tau, lambda, beta );
-        static bool printed2 = false;
         //if(!printed2)
         //{ 
         //std::cout<<"unitC_bar_tensor\n"<<unitC_bar_tensor<<"\n";
@@ -85,7 +85,9 @@ namespace Marmot::Materials {
         //std::cout<<"unitH_ij_tensor:\n"<<unitH_ij<<"\n";    
         //printed2 = true;
         //}
-
+        //std::cout<<"unitH_ij:\n "<<unitH_ij<<'\n';
+        //std::cout<<"dforce:\n "<<dforce<<'\n';
+        //std::cout<<"stateVars_Ju.col(i):\n"<<stateVars_Ju.col(i)<<'\n';
         stateVars_Ju.col( i ) = ( lambda / D ) * unitH_ij * dforce + beta * stateVars_Ju.col( i );
       }
     }

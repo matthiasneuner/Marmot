@@ -126,19 +126,9 @@ namespace Marmot::Materials {
       return;
     }
     //visco elastic step
-    //std::cout<<"elasticModuli_Ju:\n";
-    //std::cout<<elasticModuli_Ju<<'\n';
-    //std::cout<<"elasticModuli_Js:\n";
-    //std::cout<<elasticModuli_Js<<'\n';
   
-    //Eigen::Ref< KelvinChainInterface::mapStateVarMatrix_Ju> creepStateVars_Ju( stateVarManager->kelvinStateVars_Ju );
-    //Eigen::Ref< KelvinChainInterface::mapStateVarMatrix_Js> creepStateVars_Js( stateVarManager->kelvinStateVars_Js );
-    auto& creepStateVars_Ju = stateVarManager->kelvinStateVars_Ju;  // aliases Map directly
-    auto& creepStateVars_Js = stateVarManager->kelvinStateVars_Js;  // aliases Map directly
-    
-    std::cout<<"HELLO:\n";
-    std::cout<<"creepStateVars_Ju:\n"<<creepStateVars_Ju<<'\n';
-    std::cout<<"creepStateVars_Js:\n"<<creepStateVars_Js<<'\n';
+    Eigen::Ref< KelvinChainInterface::mapStateVarMatrix_Ju> creepStateVars_Ju( stateVarManager->kelvinStateVars_Ju );
+    Eigen::Ref< KelvinChainInterface::mapStateVarMatrix_Js> creepStateVars_Js( stateVarManager->kelvinStateVars_Js );
      
     const double dTimeDays = dT * timeToDays;
     
@@ -157,26 +147,22 @@ namespace Marmot::Materials {
     Vector9d creep_Js_Increment = Vector9d::Zero();
     double creep_Js_compliance = 0;
  
-    //KelvinChainInterface::evaluateKelvinChain_Js(dTimeDays,
-    //                                             elasticModuli_Js,
-    //                                             retardationTimes_Js,
-    //                                             creepStateVars_Js,
-    //                                            creep_Js_compliance,
-    //                                             creep_Js_Increment,
-    //                                             1.0);
+    KelvinChainInterface::evaluateKelvinChain_Js(dTimeDays,
+                                                 elasticModuli_Js,
+                                                 retardationTimes_Js,
+                                                 creepStateVars_Js,
+                                                creep_Js_compliance,
+                                                 creep_Js_Increment,
+                                                 1.0);
 
     using namespace Marmot::ContinuumMechanics::Viscoelasticity;
 
     //Evaluate effective compliances due to the displacement jump and the surface stress
 
     auto [unitH_voigt_full, unitZ_inv_voigt_full, E_eff, H_eff, nu_eff] = calculate_unitcompliance_interface(normal_ftensor, E_M, nu_M, E_I, nu_I, E_0, nu_0);
-    //std::cout<<"creep_Ju_compliance: "<<creep_Ju_compliance<<"\n";
-    //zerothKelvinChainCompliance_Ju = zerothKelvinChainCompliance_Js;
-    //creep_Ju_compliance = creep_Js_compliance;
-    //double a  = H_eff*E_eff;
+
     double barC_Ju = H_eff + zerothKelvinChainCompliance_Ju + creep_Ju_compliance;
-    double barC_Js = 1./E_eff;// + zerothKelvinChainCompliance_Js + creep_Js_compliance;
-    //double barC_Ju = a/barC_Js;
+    double barC_Js = 1./E_eff + zerothKelvinChainCompliance_Js + creep_Js_compliance;
   
     auto [H_inv_ij_effective, Z_ijkl_effective] = calculate_effective_properties(barC_Ju, barC_Js, normal_ftensor, nu_eff);
 
@@ -191,12 +177,6 @@ namespace Marmot::Materials {
     Fastor::TensorMap<double,3> creep_Ju_increment_fastor(creep_Ju_Increment.data());
     Tensor1D creep_Ju_increment_fastor_tensor = creep_Ju_increment_fastor;
 
-    //std::cout<<"creep_Ju_Eigen:\n"<<creep_Ju_Increment<<"\n";
-    //std::cout<<"creep_Ju_increment_Fastor:\n"<<creep_Ju_increment_fastor<<"\n";
-    //std::cout<<"H_inv_ij_effective:\n"<<H_inv_ij_effective<<"\n";
-    //std::cout<<"jumpU_ftensor:\n"<<jumpU_ftensor<<"\n";
-    //std::cout<<"creep_Ju_ftensor:\n"<<creep_Ju_increment_fastor_tensor<<"\n";
-
     Tensor1D jU_increment_difference_fastor = jumpU_ftensor - creep_Ju_increment_fastor_tensor; 
     Tensor1D  deltaforce_i = Fastor::einsum<Fastor::Index<i,j>, Fastor::Index<j>, Fastor::OIndex<i>>(H_inv_ij_effective, jU_increment_difference_fastor);
 
@@ -204,19 +184,12 @@ namespace Marmot::Materials {
     Tensor2D creep_Js_increment_fastor_tensor = creep_Js_increment_fastor;
     //std::cout<<"average surface strain: \n"<<average_dSurface_strain_ftensor_reshape<<"\n";
     //std::cout<<"average surface strain vp: \n"<<creep_Js_increment_fastor_tensor<<"\n";
-    Tensor2D jdSurface_strain_increment_difference_fastor = average_dSurface_strain_ftensor_reshape;// - creep_Js_increment_fastor_tensor; 
+    Tensor2D jdSurface_strain_increment_difference_fastor = average_dSurface_strain_ftensor_reshape - creep_Js_increment_fastor_tensor; 
     Tensor2D deltasurface_stress_ij = Fastor::einsum<Fastor::Index<i,j,k,l>,Fastor::Index<k,l>, Fastor::OIndex<i,j>>(Z_ijkl_effective, jdSurface_strain_increment_difference_fastor); 
     
     force_ftensor     += 2./h*deltaforce_i;
     surface_stress_ftensor += h/2.*deltasurface_stress_ij;
      
-    //std::cout<<"Z_ijkl-Z_ijkl_eff:\n"<<Fastor::norm(Z_ijkl-Z_ijkl_effective)<<"\n";
-    //std::cout<<"H_inv_ij - H_inv_ij_effective:\n"<<Fastor::norm(H_inv_ij - H_inv_ij_effective)<<"\n";
-    //std::cout<<"norm H_inv_nF_ijk:\n"<<Fastor::norm(H_inv_nF_ijk)<<"\n";
-    //std::cout<<"norm Yn_H_inv_Fn_ijkl:\n"<<Fastor::norm(Yn_H_inv_Fn_ijkl)<<"\n";
-    //std::cout<<"Z:\n"<< Z_ijkl <<"\n"; 
-    //std::cout<<"H_inv_ij_effective:\n"<<H_inv_ij_effective<<"\n";
-    // We write the variational form using the averaged incremental matrices
     Cel.block(0,0,9,9) = convert4thOrderTensorToMatrix(h/2.*Z_ijkl_effective);
     Cel.block(12,12,9,9) = convert4thOrderTensorToMatrix(h/2.*Yn_H_inv_Fn_ijkl);
     Cel.block(0,9,9,3) = convert3rdOrderTensorToMatrix(H_inv_nF_ijk);
@@ -231,12 +204,9 @@ namespace Marmot::Materials {
     
     // Use already available functionality convert Fastor tensors to Eigen matricfes/vectors
     // Tranform to Eigen matrices to work with the internal machinery of KelvinChainInterface ...
-    
-    //Eigen::Map<Eigen::Matrix<double,3,3, Eigen::RowMajor>>unitH_voigt_full(unitH_ij.data());
-    //Eigen::Map<Eigen::Matrix<double,9,9, Eigen::RowMajor>>unitZ_inv_voigt_full(unitZ_inv_ijkl.data());
     Eigen::Map<Eigen::Matrix<double,3, Eigen::RowMajor>> deltaforce_voigt_full(deltaforce_i.data());
     Eigen::Map<Eigen::Matrix<double,9, Eigen::RowMajor>> deltasurface_stress_voigt_full(deltasurface_stress_ij.data());
-    
+  
     KelvinChainInterface::updateStateVarMatrix_Ju( dTimeDays,
                                                    elasticModuli_Ju,
                                                    retardationTimes_Ju,
@@ -245,13 +215,12 @@ namespace Marmot::Materials {
                                                    unitH_voigt_full,
                                                    h);
     
-    //KelvinChainInterface::updateStateVarMatrix_Js( dTimeDays,
-    //                                               elasticModuli_Js,
-    //                                               retardationTimes_Js,
-    //                                               creepStateVars_Js,
-    //                                               deltasurface_stress_voigt_full,
-    //                                               unitZ_inv_voigt_full);
-  
+    KelvinChainInterface::updateStateVarMatrix_Js( dTimeDays,
+                                                   elasticModuli_Js,
+                                                   retardationTimes_Js,
+                                                   creepStateVars_Js,
+                                                   deltasurface_stress_voigt_full,
+                                                   unitZ_inv_voigt_full);  
     
     return;
       };

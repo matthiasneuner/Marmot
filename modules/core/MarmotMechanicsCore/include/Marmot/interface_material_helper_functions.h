@@ -85,7 +85,7 @@ template <typename T>
 //Tensor4D voigt_full_to_tensor(const Matrix<T, 9, 9>& M_matrix);
 //Tensor4D voigtToTensor(const Eigen::Matrix<double,6,6> &voigtStiffness);
 Tensor4D voigtToStiffness(const Eigen::Matrix<double,6,6> &voigtStiffness);
-Tensor4D voigtToStiffness(const Eigen::Matrix<double,6,6> &voigtStiffness);
+//Tensor4D voigtToStiffness2(const Eigen::Matrix<double,6,6> &voigtStiffness);
 
 //Eigen::Matrix<double, 9, 9> create_isotropic_elasticity_tensor(double E, double nu);
 
@@ -117,4 +117,18 @@ std::tuple<Tensor2D, Tensor4D>calculate_effective_properties(const double& barC_
                                                              const Tensor1D& normal,
                                                              const double& nu_bar
                                                              );
+
+
+std::tuple<Tensor2D, Tensor4D, Eigen::Matrix<double,3,3>, Eigen::Matrix<double,9,9>>calculate_effective_properties(
+                                                                                           double& zerothWienertStiffness_Ru,
+                                                                                           double& creep_Ru_stiffness,
+                                                                                           double& zerothWienertStiffness_Rs,
+                                                                                           double& creep_Rs_stiffness,
+                                                                                           const Tensor1D& normal,
+                                                                                           const double& E_M,
+                                                                                           const double& nu_M,
+                                                                                           const double& E_I,
+                                                                                           const double& nu_I,
+                                                                                           const double& E_0,
+                                                                                           const double& nu_0);                                                             
 

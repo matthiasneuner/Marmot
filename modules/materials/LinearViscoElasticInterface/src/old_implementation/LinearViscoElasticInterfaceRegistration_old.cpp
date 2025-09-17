@@ -1,11 +1,11 @@
-#include "Marmot/LinearViscoElasticInterface.h"
+#include "../include/Marmot/LinearViscoElasticInterface.h"
 #include "Marmot/MarmotMaterialRegistrationHelper.h"
 
 namespace Marmot::Materials {
 
   namespace Registration {
 
-    constexpr int LinearViscoElasticInterfaceCode = 2002;
+    constexpr int LinearViscoElasticInterfaceCode = 2;
 
     using namespace MarmotLibrary;
 

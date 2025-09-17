@@ -65,7 +65,7 @@ void assert_equivalent_F_Falt_Y(
     Tensor4D L_I 
     );
 
-enum {a,i,b,j,k,l,m,n};
+enum {a,i,b,j,k,l,m,n, I, J};
 
 Tensor2D compute_inv( const Tensor2D& I, Tensor2D& Q )
 {
@@ -343,6 +343,36 @@ Tensor4D voigtToStiffness(const Eigen::Matrix<double,6,6> &voigtStiffness)
 return stiffness;
 }
 
+//Tensor4D voigtToStiffness(const Eigen::Matrix<double,6,6> &voigtStiffness)
+//{
+    // Conversion tensors V_{Jkl} and W_{ijI}
+//    Fastor::TensorMap<const double,6,6> Cvoigt(voigtStiffness.data());
+//    Fastor::Tensor<double,6,3,3> V; V.zeros();
+//    Fastor::Tensor<double,3,3,6> W; W.zeros();
+
+    // V: maps symmetric tensor -> Voigt strain
+//    V(0,0,0) = 1.0;        // 11
+//    V(1,1,1) = 1.0;        // 22
+//    V(2,2,2) = 1.0;        // 33
+//    V(3,1,2) = V(3,2,1) = 1.0; // 23
+//    V(4,0,2) = V(4,2,0) = 1.0; // 13
+//    V(5,0,1) = V(5,1,0) = 1.0; // 12
+
+    // W: maps Voigt stress -> symmetric tensor
+//    W(0,0,0) = 1.0; // 11
+//    W(1,1,1) = 1.0; // 22
+//    W(2,2,2) = 1.0; // 33
+//    W(1,2,3) = W(2,1,3) = 1.0; // 23
+//    W(0,2,4) = W(2,0,4) = 1.0; // 13
+//    W(0,1,5) = W(1,0,5) = 1.0; // 12
+
+//    Tensor4D stiffness = einsum<Fastor::Index<i,j,I>,Fastor::Index<I,J>,Fastor::Index<J,k,l>, Fastor::OIndex<i,j,k,l>>(W,Cvoigt,V);
+//    Tensor4D stiffness2 = voigtToStiffness2(voigtStiffness);
+//    double norma= Fastor::norm(stiffness-stiffness2);
+//    std::cout<<"stiffness norm definition: "<<norma<<'\n';
+//  return stiffness;
+//}
+
 // Scale factor: 1 for diagonal terms, sqrt(2) for shear
 inline double voigtScaling(int i, int j) {
     return (i == j) ? 1.0 : std::sqrt(2.0);
@@ -433,30 +463,21 @@ std::tuple<Eigen::Matrix<double,3,3>, Eigen::Matrix<double,9,9>, double, double,
     Eigen::Matrix<double,3,3> I = Eigen::Matrix<double,3,3>::Identity();
     Eigen::Matrix<double, 3, 3> unitG_bar_voigt_full = unitQ_bar_voigt_full.fullPivLu().solve( I );
     Fastor::TensorMap<double,3,3> unitG_bar_tensor(unitG_bar_voigt_full.data());
-
-    //Tensor2D unitG_bar_tensor = compute_inv(I, unitQ_bar_tensor );
-
-    //static bool printed = false;
-    //if(!printed)
-  //{ 
-    //std::cout<<"unitC_bar_tensor\n"<<unitC_bar_tensor<<"\n";
-    //std::cout<<"normal:\n"<<normal<<"\n";
-    //std::cout<<"N:\n"<<N<<"\n";
-    //std::cout<<"unitQ_tensor:\n"<<unitQ_bar_voigt_full<<"\n";
-    //std::cout<<"unitG_tensor:\n"<<unitG_bar_voigt_full<<"\n";    
-    //printed = true;
-  //}
+  
     Tensor4D unitZ_bar_tensor = unitC_bar_tensor;
-    Tensor4D unitA_bar_tensor = Fastor::einsum<Fastor::Index<a,b>, Fastor::Index<i,j>, Fastor::OIndex<a,i,b,j>>(unitG_bar_tensor,N); 
-    unitZ_bar_tensor -= Fastor::einsum<Fastor::Index<a,i,m,n>, Fastor::Index<m,n,k,l>, Fastor::Index<k,l,b,j>, Fastor::OIndex<a,i,b,j>>(unitC_bar_tensor,unitA_bar_tensor,unitC_bar_tensor); 
+    Tensor4D unitA_bar_tensor = Fastor::einsum<Fastor::Index<a,b>, Fastor::Index<i,j>, Fastor::OIndex<a,i,b,j>>(unitG_bar_tensor,N);
+    Tensor4D unitCA_tensor = Fastor::einsum<Fastor::Index<a,i,m,n>, Fastor::Index<m,n,k,l>, Fastor::OIndex<a,i,k,l>>(unitC_bar_tensor,unitA_bar_tensor);  
+    unitZ_bar_tensor -= Fastor::einsum<Fastor::Index<m,n,k,l>, Fastor::Index<k,l,b,j>, Fastor::OIndex<m,n,b,j>>(unitCA_tensor,unitC_bar_tensor); 
+    //unitZ_bar_tensor -= Fastor::einsum<Fastor::Index<a,i,m,n>, Fastor::Index<m,n,k,l>, Fastor::Index<k,l,b,j>, Fastor::OIndex<a,i,b,j>>(unitC_bar_tensor,unitA_bar_tensor,unitC_bar_tensor); 
     
     Eigen::Matrix<double, 9, 9> II = Eigen::Matrix<double, 9, 9>::Identity();
     Eigen::Map<Eigen::Matrix<double,9,9, Eigen::RowMajor>> unitZ_bar_voigt_full(unitZ_bar_tensor.data());
   
     Eigen::Matrix<double, 9, 9> unitZ_bar_inv_voigt_full = unitZ_bar_voigt_full.fullPivLu().solve( II );
-
+    Eigen::Matrix<double,9,9> product_unit=unitZ_bar_inv_voigt_full*unitZ_bar_voigt_full;
+    //std::cout<<"Check that inverse is satisfied inside calculate_unitcompliance:\n"<<product_unit<<'\n';
     //Fastor::TensorMap<double,3,3,3,3> unitZ_bar_inv_tensor(unitZ_bar_inv_voigt_full.data());
-
+    // Using FullPivLU (cheap for small/medium problems)
     return  {unitG_bar_voigt_full, unitZ_bar_inv_voigt_full, E_bar, H_bar, nu_bar}; 
 }
 
@@ -473,9 +494,11 @@ std::tuple<Tensor2D, Tensor4D>calculate_effective_properties(const double& barC_
 
     Tensor2D N = Fastor::einsum<Fastor::Index<i>, Fastor::Index<j>, Fastor::OIndex<i,j>>(normal, normal);
 
-    Eigen::Matrix<double, 6, 6> C_Ju_full = stiffnessTensor(1./barC_Ju, nu_bar);                   
-    
-    Eigen::Matrix<double, 6, 6> C_Js_full = stiffnessTensor(1./barC_Js, nu_bar);
+    //Eigen::Matrix<double, 6, 6> C_Ju_full = stiffnessTensor(1./barC_Ju, nu_bar);                       
+    //Eigen::Matrix<double, 6, 6> C_Js_full = stiffnessTensor(1./barC_Js, nu_bar);
+    Eigen::Matrix<double, 6, 6> C_full = stiffnessTensor(1., nu_bar);   
+    Eigen::Matrix<double, 6, 6> C_Ju_full = 1./barC_Ju*C_full;                       
+    Eigen::Matrix<double, 6, 6> C_Js_full = 1./barC_Js*C_full;
 
     Tensor4D C_Ju_tensor = voigtToStiffness(C_Ju_full);
     Tensor4D C_Js_tensor = voigtToStiffness(C_Js_full);
@@ -491,10 +514,71 @@ std::tuple<Tensor2D, Tensor4D>calculate_effective_properties(const double& barC_
     //Tensor4D B = L - LAL;    
     
     Tensor4D Z_Js_tensor = C_Js_tensor;
-    Tensor4D A_Js_tensor = Fastor::einsum<Fastor::Index<a,b>, Fastor::Index<i,j>, Fastor::OIndex<a,i,b,j>>(G_Js_tensor,N); 
-    Z_Js_tensor -= Fastor::einsum<Fastor::Index<a,i,m,n>, Fastor::Index<m,n,k,l>, Fastor::Index<k,l,b,j>, Fastor::OIndex<a,i,b,j>>(C_Js_tensor,A_Js_tensor,C_Js_tensor);
+    Tensor4D A_Js_tensor = Fastor::einsum<Fastor::Index<a,b>, Fastor::Index<i,j>, Fastor::OIndex<a,i,b,j>>(G_Js_tensor,N);
+    Tensor4D CA_Js_tensor = Fastor::einsum<Fastor::Index<a,i,m,n>, Fastor::Index<m,n,k,l>, Fastor::OIndex<a,i,k,l>>(C_Js_tensor,A_Js_tensor);
+  
+    Z_Js_tensor -= Fastor::einsum<Fastor::Index<m,n,k,l>, Fastor::Index<k,l,b,j>, Fastor::OIndex<m,n,b,j>>(CA_Js_tensor,C_Js_tensor);
+    Eigen::Matrix<double, 9, 9> II = Eigen::Matrix<double, 9, 9>::Identity();
+    Eigen::Map<Eigen::Matrix<double,9,9, Eigen::RowMajor>> Z_Js_voigt_full(Z_Js_tensor.data());
+  
+    Eigen::Matrix<double, 9, 9> Z_Js_inv_voigt_full = Z_Js_voigt_full.fullPivLu().solve( II );
+    Eigen::Matrix<double,9,9> product_eff =Z_Js_inv_voigt_full*Z_Js_voigt_full; 
+    //std::cout<<"Check that inverse is satisfied inside calculate_effective_properties:\n"<<product_eff<<'\n';
+
+    // Using FullPivLU (cheap for small/medium problems)
+    Eigen::FullPivLU<Eigen::MatrixXd> lu(Z_Js_voigt_full);
+    int rank1 = lu.rank();
+    std::cout << "Rank_effective (FullPivLU) = " << rank1 << "\n";  
     //assert_Q_ij_G_ij(H_inv_Js_tensor, normal, 1./barC_Js);
     //assert_Z_ijkl(Z_Js_tensor, normal, 1./barC_Js);
     
-    return  {H_inv_Ju_tensor, Z_Js_tensor}; 
+    return  {H_inv_Ju_tensor, Z_Js_tensor};
+}
+
+std::tuple<Tensor2D, Tensor4D, Eigen::Matrix<double,3,3>, Eigen::Matrix<double,9,9>>calculate_effective_properties(
+                                                                                           double& zerothWienertStiffness_Ru,
+                                                                                           double& creep_Ru_stiffness,
+                                                                                           double& zerothWienertStiffness_Rs,
+                                                                                           double& creep_Rs_stiffness,
+                                                                                           const Tensor1D& normal,
+                                                                                           const double& E_M,
+                                                                                           const double& nu_M,
+                                                                                           const double& E_I,
+                                                                                           const double& nu_I,
+                                                                                           const double& E_0,
+                                                                                           const double& nu_0)                                                             
+{   using namespace Marmot::ContinuumMechanics::Elasticity::Isotropic;
+    Tensor2D N = Fastor::einsum<Fastor::Index<i>, Fastor::Index<j>, Fastor::OIndex<i,j>>(normal, normal);
+
+    double E_bar = E_M+E_I-2.*E_0;
+    double H_bar = 2.*1./E_0 - 1./E_M -1/E_I;
+    
+    double nu_bar = nu_0;  
+    Eigen::Matrix<double,6,6> unitC_bar_voigt_full =  stiffnessTensor(1, nu_bar);
+    Tensor4D unitC_bar_tensor = voigtToStiffness(unitC_bar_voigt_full);
+
+    Tensor2D unitQ_bar_tensor = Fastor::einsum<Fastor::Index<a,i,b,j>, Fastor::Index<i,j>, Fastor::OIndex<a,b>>(unitC_bar_tensor, N);
+    Eigen::Map<Eigen::Matrix<double,3,3, Eigen::RowMajor>> unitQ_bar_voigt_full(unitQ_bar_tensor.data());
+
+    Eigen::Matrix<double,3,3> II = Eigen::Matrix<double,3,3>::Identity();
+    Eigen::Matrix<double, 3, 3> unitG_bar_voigt_full = unitQ_bar_voigt_full.fullPivLu().solve( II );
+    Fastor::TensorMap<double,3,3> unitG_bar_tensor(unitG_bar_voigt_full.data());
+  
+    Tensor4D unitZ_bar_tensor = unitC_bar_tensor;
+    Tensor4D unitA_bar_tensor = Fastor::einsum<Fastor::Index<a,b>, Fastor::Index<i,j>, Fastor::OIndex<a,i,b,j>>(unitG_bar_tensor,N);
+    Tensor4D unitCA_tensor = Fastor::einsum<Fastor::Index<a,i,m,n>, Fastor::Index<m,n,k,l>, Fastor::OIndex<a,i,k,l>>(unitC_bar_tensor,unitA_bar_tensor);  
+    unitZ_bar_tensor -= Fastor::einsum<Fastor::Index<m,n,k,l>, Fastor::Index<k,l,b,j>, Fastor::OIndex<m,n,b,j>>(unitCA_tensor,unitC_bar_tensor); 
+    Eigen::Map<Eigen::Matrix<double,9,9, Eigen::RowMajor>> unitZ_bar_voigt_full(unitZ_bar_tensor.data());
+
+    
+    double barE_Ru = 1./H_bar + 0.*zerothWienertStiffness_Ru + creep_Ru_stiffness;
+    double barE_Rs = E_bar + 0.*zerothWienertStiffness_Rs + creep_Rs_stiffness;
+
+    Tensor2D H_inv_Ru_tensor = barE_Ru*unitQ_bar_tensor;
+ 
+    
+    Tensor4D Z_Rs_tensor = barE_Rs*unitZ_bar_tensor;
+    Eigen::Map<Eigen::Matrix<double,9,9, Eigen::RowMajor>> Z_Js_voigt_full(Z_Rs_tensor.data());
+    
+    return  {H_inv_Ru_tensor, Z_Rs_tensor, unitG_bar_voigt_full, unitZ_bar_voigt_full}; 
 }

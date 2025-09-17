@@ -31,7 +31,7 @@
 #include <string>
 #include <vector>
 #include "Fastor/Fastor.h"
-#include "Marmot/MarmotKelvinChainInterface.h"
+#include "Marmot/MarmotWiechertInterface.h"
 #include "Marmot/MarmotMaterialHypoElasticInterface.h"
 #include "Marmot/MarmotStateVarVectorManager.h"
 
@@ -74,28 +74,28 @@ namespace Marmot::Materials {
     const double& h;
     
     /// \brief power law compliance parameter displacement jump
-    const double& m_Ju;
+    const double& m_Ru;
 
     /// \brief power law exponent displacement jump
-    const double& n_Ju;
+    const double& n_Ru;
 
     /// \brief number of Kelvin units to approximate the viscoelastic compliance for displacement jump
-    const size_t nKelvin_Ju;
+    const size_t nMaxwell_Ru;
 
     /// \brief minimal retardation time used in the viscoelastic Kelvin chain for displacement jump
-    const double& minTau_Ju;
+    const double& minTau_Ru;
 
     /// \brief power law compliance parameter surface stress
-    const double& m_Js;
+    const double& m_Rs;
 
     /// \brief power law exponent surface stress
-    const double& n_Js;
+    const double& n_Rs;
 
     /// \brief number of Kelvin units to approximate the viscoelastic compliance for surface stress
-    const size_t nKelvin_Js;
+    const size_t nMaxwell_Rs;
 
     /// \brief minimal retardation time used in the viscoelastic Kelvin chain for surface stress
-    const double& minTau_Js;
+    const double& minTau_Rs;
 
     /// \brief ratio of simulation time to days
     const double& timeToDays;
@@ -104,17 +104,17 @@ namespace Marmot::Materials {
 
     public:
       inline const static auto layout = makeLayout( {
-        { .name = "kelvinStateVars_Ju", .length = 3*2 },
-        { .name = "kelvinStateVars_Js", .length = 9*2 },
+        { .name = "MaxwellStateVars_Ru", .length = 3*2 },
+        { .name = "MaxwellStateVars_Rs", .length = 9*2 },
       } );
 
-      KelvinChainInterface::mapStateVarMatrix_Ju kelvinStateVars_Ju;
-      KelvinChainInterface::mapStateVarMatrix_Js kelvinStateVars_Js;
+      WiechertInterface::mapStateVarMatrix_Ru MaxwellStateVars_Ru;
+      WiechertInterface::mapStateVarMatrix_Rs MaxwellStateVars_Rs;
       
-      LinearViscoElasticInterfaceStateVarManager( double* theStateVarVector, int nKelvinUnits_Ju, int nKelvinUnits_Js )
+      LinearViscoElasticInterfaceStateVarManager( double* theStateVarVector, int nMaxwellUnits_Ru, int nMaxwellUnits_Rs )
         : MarmotStateVarVectorManager( theStateVarVector, layout ),
-          kelvinStateVars_Ju( &find( "kelvinStateVars_Ju" ), 3, nKelvinUnits_Ju ), 
-          kelvinStateVars_Js( &find( "kelvinStateVars_Js" ), 9, nKelvinUnits_Js )
+          MaxwellStateVars_Ru( &find( "MaxwellStateVars_Ru" ), 3, nMaxwellUnits_Ru ), 
+          MaxwellStateVars_Rs( &find( "MaxwellStateVars_Rs" ), 9, nMaxwellUnits_Rs )
           {};
     };
 
@@ -144,12 +144,12 @@ namespace Marmot::Materials {
     StateView getStateView( const ::std::string& stateName );
 
   private:
-    KelvinChainInterface::Properties elasticModuli_Ju;
-    KelvinChainInterface::Properties elasticModuli_Js;
-    KelvinChainInterface::Properties retardationTimes_Ju;
-    KelvinChainInterface::Properties retardationTimes_Js;
-    double                  zerothKelvinChainCompliance_Ju;
-    double                  zerothKelvinChainCompliance_Js;
+    WiechertInterface::Properties elasticModuli_Ru;
+    WiechertInterface::Properties elasticModuli_Rs;
+    WiechertInterface::Properties retardationTimes_Ru;
+    WiechertInterface::Properties retardationTimes_Rs;
+    double                  zerothWiechertStiffness_Ru;
+    double                  zerothWiechertStiffness_Rs;
 
     static constexpr int powerLawApproximationOrder = 2;
   };

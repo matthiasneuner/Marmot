@@ -203,7 +203,7 @@ namespace Marmot::Materials {
     Fastor::TensorMap<double,3,3> creep_Rs_increment_fastor(creep_Rs_Increment.data()); 
 
     //std::cout<<"creep_Rs_increment_fastor:\n"<<creep_Rs_increment_fastor<<'\n';
-    Tensor2D deltasurface_stress_ij = Fastor::einsum<Fastor::Index<i,j,k,l>,Fastor::Index<k,l>, Fastor::OIndex<i,j>>(Z_ijkl_effective, average_dSurface_strain_ftensor_reshape)-creep_Rs_increment_fastor; 
+    Tensor2D deltasurface_stress_ij = Fastor::einsum<Fastor::Index<i,j,k,l>,Fastor::Index<k,l>, Fastor::OIndex<i,j>>(Z_ijkl_effective, average_dSurface_strain_ftensor_reshape)+creep_Rs_increment_fastor; 
     
     force_ftensor     += 2./h*deltaforce_i;
     surface_stress_ftensor += h/2.*deltasurface_stress_ij;

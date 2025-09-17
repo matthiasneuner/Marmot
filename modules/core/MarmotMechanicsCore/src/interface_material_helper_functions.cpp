@@ -571,14 +571,13 @@ std::tuple<Tensor2D, Tensor4D, Eigen::Matrix<double,3,3>, Eigen::Matrix<double,9
     Eigen::Map<Eigen::Matrix<double,9,9, Eigen::RowMajor>> unitZ_bar_voigt_full(unitZ_bar_tensor.data());
 
     
-    double barE_Ru = 1./H_bar + 0.*zerothWienertStiffness_Ru + creep_Ru_stiffness;
+    double barE_Ru = 1./H_bar + 0.*zerothWienertStiffness_Ru - creep_Ru_stiffness;
     double barE_Rs = E_bar + 0.*zerothWienertStiffness_Rs + creep_Rs_stiffness;
 
     Tensor2D H_inv_Ru_tensor = barE_Ru*unitQ_bar_tensor;
  
     
     Tensor4D Z_Rs_tensor = barE_Rs*unitZ_bar_tensor;
-    Eigen::Map<Eigen::Matrix<double,9,9, Eigen::RowMajor>> Z_Js_voigt_full(Z_Rs_tensor.data());
     
-    return  {H_inv_Ru_tensor, Z_Rs_tensor, unitG_bar_voigt_full, unitZ_bar_voigt_full}; 
+    return  {H_inv_Ru_tensor, Z_Rs_tensor, unitQ_bar_voigt_full, unitZ_bar_voigt_full}; 
 }

@@ -67,11 +67,8 @@ namespace Marmot::Materials {
 
     //retardationTimes_Ru = Marmot::Materials::WiechertInterface::generateRetardationTimes(nMaxwell_Ru, minTau_Ru, sqrt(10));
     //retardationTimes_Rs = Marmot::Materials::WiechertInterface::generateRetardationTimes(nMaxwell_Rs, minTau_Rs, sqrt(10));
-
-    Eigen::VectorXd retardationTimes_Ru(2);
-    retardationTimes_Ru<<0.01, 0.1;
-    Eigen::VectorXd retardationTimes_Rs(2);
-    retardationTimes_Rs<< 0.01, 0.1; 
+     retardationTimes_Ru = Marmot::Materials::WiechertInterface::initialize_retardationTimes_Ru(nMaxwell_Ru,m_Ru);
+     retardationTimes_Rs = Marmot::Materials::WiechertInterface::initialize_retardationTimes_Rs(nMaxwell_Rs,m_Rs); 
 
     using namespace Marmot::ContinuumMechanics::Viscoelasticity ;
     auto phiRu_ = [&](autodiff::Real<powerLawApproximationOrder, double> tau){

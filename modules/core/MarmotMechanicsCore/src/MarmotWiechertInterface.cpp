@@ -51,8 +51,6 @@ namespace Marmot::Materials {
 
         double lambda, beta;
         computeLambdaAndBeta( dT, tau, lambda, beta );
-        std::cout<<"lambda:\n"<<lambda<<"\n";
-        std::cout<<"beta:\n"<<beta<<"\n";
 
         uniaxialStiffness_Rs += lambda * D * factor;
         dsurface_stress_v += ( 1. - beta ) * stateVars_Rs.col( i ) * factor;

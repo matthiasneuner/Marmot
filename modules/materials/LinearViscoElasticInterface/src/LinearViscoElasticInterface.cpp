@@ -69,6 +69,8 @@ namespace Marmot::Materials {
     //retardationTimes_Rs = Marmot::Materials::WiechertInterface::generateRetardationTimes(nMaxwell_Rs, minTau_Rs, sqrt(10));
      retardationTimes_Ru = Marmot::Materials::WiechertInterface::initialize_retardationTimes_Ru(nMaxwell_Ru,m_Ru);
      retardationTimes_Rs = Marmot::Materials::WiechertInterface::initialize_retardationTimes_Rs(nMaxwell_Rs,m_Rs); 
+     elasticModuli_Ru = Marmot::Materials::WiechertInterface::initialize_elasticModuli_Ru(nMaxwell_Ru,n_Ru);
+     elasticModuli_Rs = Marmot::Materials::WiechertInterface::initialize_elasticModuli_Rs(nMaxwell_Rs,n_Rs); 
 
     using namespace Marmot::ContinuumMechanics::Viscoelasticity ;
     auto phiRu_ = [&](autodiff::Real<powerLawApproximationOrder, double> tau){
@@ -82,18 +84,8 @@ namespace Marmot::Materials {
     //elasticModuli_Ru = Marmot::Materials::WiechertInterface::computeElasticModuli_Ru<powerLawApproximationOrder>(phiRu_, retardationTimes_Ru);
     //elasticModuli_Rs = Marmot::Materials::WiechertInterface::computeElasticModuli_Rs<powerLawApproximationOrder>(phiRs_, retardationTimes_Rs);
     
-    //zerothWiechertStiffness_Ru = m_Ru*(1. - n_Ru )*pow( 2., n_Ru )*pow(minTau_Ru/sqrt(10.), n_Ru);  
-    //zerothWiechertStiffness_Rs = m_Rs*(1. - n_Rs )*pow( 2., n_Rs )*pow(minTau_Rs/sqrt(10.), n_Rs);
-    Eigen::VectorXd elasticModuli_Ru(2);
-    elasticModuli_Ru<<0.01 , 0.1; 
-    
-    Eigen::VectorXd elasticModuli_Rs(2);
-    elasticModuli_Rs<< 0.01 , 0.1; 
-    
-    Eigen::VectorXd zerothWiechertStiffness_Ru(2);
-    zerothWiechertStiffness_Ru<< 1. , 1.;
-    Eigen::VectorXd zerothWiechertStiffness_Rs(2);
-    zerothWiechertStiffness_Rs<< 1. , 1.;
+    zerothWiechertStiffness_Ru = 1.0;//m_Ru*(1. - n_Ru )*pow( 2., n_Ru )*pow(minTau_Ru/sqrt(10.), n_Ru);  
+    zerothWiechertStiffness_Rs = 1.0;//m_Rs*(1. - n_Rs )*pow( 2., n_Rs )*pow(minTau_Rs/sqrt(10.), n_Rs);
 
   }
 

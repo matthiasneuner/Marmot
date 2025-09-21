@@ -5,7 +5,7 @@ namespace Marmot::Materials {
 
   namespace Registration {
 
-    constexpr int LinearElasticInterfaceCode = 1;
+    constexpr int LinearElasticInterfaceCode = 50001;
 
     using namespace MarmotLibrary;
 

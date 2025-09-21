@@ -47,56 +47,69 @@ namespace Marmot::Materials {
     typedef Eigen::Map< StateVarMatrix_Ru >               mapStateVarMatrix_Ru;
     typedef Eigen::Map< StateVarMatrix_Rs >               mapStateVarMatrix_Rs;
     
-    template < int k >
-    Properties computeElasticModuli_Ru( std::function< autodiff::Real< k, double >( autodiff::Real< k, double > ) > phi,
-                                     Properties retardationTimes_Ru,
-                                     bool       gaussQuadrature = false )
-    { 
-      Properties elasticModuli_Ru( retardationTimes_Ru.size() );
-      double     spacing = retardationTimes_Ru( 1 ) / retardationTimes_Ru( 0 );
-      for ( int i = 0; i < retardationTimes_Ru.size(); i++ ) {
-        double tau = retardationTimes_Ru( i );
-        if ( !gaussQuadrature ) {
-      
-          elasticModuli_Ru( i ) = 1. / ( log( spacing ) * KelvinChain::evaluatePostWidderFormula< k >( phi, tau ) );
-      
-        }
-        else {
-          elasticModuli_Ru( i ) = 1. /
-                               ( log( spacing ) / 2. *
-                                 ( KelvinChain::evaluatePostWidderFormula< k >( phi, tau * pow( spacing, -sqrt( 3. ) / 6. ) ) +
-                                   KelvinChain::evaluatePostWidderFormula< k >( phi, tau * pow( spacing, sqrt( 3. ) / 6. ) ) ) );
-        }
-      }
+    //template < int k >
+    //Properties computeElasticModuli_Ru( std::function< autodiff::Real< k, double >( autodiff::Real< k, double > ) > phi,
+    //                                 Properties retardationTimes_Ru,
+    //                                 bool       gaussQuadrature = false )
+    //{ 
+    //  Properties elasticModuli_Ru( retardationTimes_Ru.size() );
+    //  double     spacing = retardationTimes_Ru( 1 ) / retardationTimes_Ru( 0 );
+    //  for ( int i = 0; i < retardationTimes_Ru.size(); i++ ) {
+    //    double tau = retardationTimes_Ru( i );
+    //    if ( !gaussQuadrature ) {
+    //  
+    //      elasticModuli_Ru( i ) = 1. / ( log( spacing ) * KelvinChain::evaluatePostWidderFormula< k >( phi, tau ) );
+     // 
+     //   }
+     //   else {
+     //     elasticModuli_Ru( i ) = 1. /
+     //                          ( log( spacing ) / 2. *
+     //                            ( KelvinChain::evaluatePostWidderFormula< k >( phi, tau * pow( spacing, -sqrt( 3. ) / 6. ) ) +
+//                                   KelvinChain::evaluatePostWidderFormula< k >( phi, tau * pow( spacing, sqrt( 3. ) / 6. ) ) ) );
+  //      }
+   //   }
+//
+//      return elasticModuli_Ru;
+//    }
 
-      return elasticModuli_Ru;
-    }
-
-    template < int k >
-    Properties computeElasticModuli_Rs( std::function< autodiff::Real< k, double >( autodiff::Real< k, double > ) > phi,
-                                     Properties retardationTimes_Rs,
-                                     bool       gaussQuadrature = false )
-    {
-      Properties elasticModuli_Rs( retardationTimes_Rs.size() );
-      double     spacing = retardationTimes_Rs( 1 ) / retardationTimes_Rs( 0 );
-
-      for ( int i = 0; i < retardationTimes_Rs.size(); i++ ) {
-        double tau = retardationTimes_Rs( i );
-        if ( !gaussQuadrature ) {
-          elasticModuli_Rs( i ) = 1. / ( log( spacing ) * KelvinChain::evaluatePostWidderFormula< k >( phi, tau ) );
-        }
-        else {
-          elasticModuli_Rs( i ) = 1. /
-                               ( log( spacing ) / 2. *
-                                 ( KelvinChain::evaluatePostWidderFormula< k >( phi, tau * pow( spacing, -sqrt( 3. ) / 6. ) ) +
-                                   KelvinChain::evaluatePostWidderFormula< k >( phi, tau * pow( spacing, sqrt( 3. ) / 6. ) ) ) );
-        }
-      }
-
-      return elasticModuli_Rs;
-    }
+    //template < int k >
+    //Properties computeElasticModuli_Rs( std::function< autodiff::Real< k, double >( autodiff::Real< k, double > ) > phi,
+    //                                 Properties retardationTimes_Rs,
+    //                                 bool       gaussQuadrature = false )
+    //{
+    //  Properties elasticModuli_Rs( retardationTimes_Rs.size() );
+    //  double     spacing = retardationTimes_Rs( 1 ) / retardationTimes_Rs( 0 );
+//
+//      for ( int i = 0; i < retardationTimes_Rs.size(); i++ ) {
+//        double tau = retardationTimes_Rs( i );
+//        if ( !gaussQuadrature ) {
+//          elasticModuli_Rs( i ) = 1. / ( log( spacing ) * KelvinChain::evaluatePostWidderFormula< k >( phi, tau ) );
+ //       }
+ //       else {
+ //         elasticModuli_Rs( i ) = 1. /
+ //                              ( log( spacing ) / 2. *
+  //                               ( KelvinChain::evaluatePostWidderFormula< k >( phi, tau * pow( spacing, -sqrt( 3. ) / 6. ) ) +
+  //                                 KelvinChain::evaluatePostWidderFormula< k >( phi, tau * pow( spacing, sqrt( 3. ) / 6. ) ) ) );
+ //       }
+ //     }
+//
+ //     return elasticModuli_Rs;
+  //  }
 
     Properties generateRetardationTimes( int n, double min, double spacing );
+
+    Properties initialize_elasticModuli_Ru(int nMaxwell_Ru, 
+                                           double n_Ru);
+
+    Properties initialize_elasticModuli_Rs(int nMaxwell_Rs, 
+                                           double n_Rs);
+    
+    Properties initialize_retardationTimes_Ru(int nMaxwell_Ru, 
+                                           double m_Ru);
+
+    Properties initialize_retardationTimes_Rs(int nMaxwell_Rs, 
+                                           double m_Rs);
+
 
     void updateStateVarMatrix_Ru(    const double                    dT,
                                      Properties                      elasticModuli_Ru,

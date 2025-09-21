@@ -104,8 +104,8 @@ namespace Marmot::Materials {
 
     public:
       inline const static auto layout = makeLayout( {
-        { .name = "MaxwellStateVars_Ru", .length = 3*2 },
-        { .name = "MaxwellStateVars_Rs", .length = 9*2 },
+        { .name = "MaxwellStateVars_Ru", .length = 3*1 },
+        { .name = "MaxwellStateVars_Rs", .length = 9*1 },
       } );
 
       WiechertInterface::mapStateVarMatrix_Ru MaxwellStateVars_Ru;

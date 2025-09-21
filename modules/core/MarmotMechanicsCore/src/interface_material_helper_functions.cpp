@@ -571,8 +571,8 @@ std::tuple<Tensor2D, Tensor4D, Eigen::Matrix<double,3,3>, Eigen::Matrix<double,9
     Eigen::Map<Eigen::Matrix<double,9,9, Eigen::RowMajor>> unitZ_bar_voigt_full(unitZ_bar_tensor.data());
 
     
-    double barE_Ru = 1./H_bar + 0.*zerothWienertStiffness_Ru - creep_Ru_stiffness;
-    double barE_Rs = E_bar + 0.*zerothWienertStiffness_Rs + creep_Rs_stiffness;
+    double barE_Ru = 1./H_bar + 0.*zerothWienertStiffness_Ru + creep_Ru_stiffness;
+    double barE_Rs = E_bar + 0.*zerothWienertStiffness_Rs - creep_Rs_stiffness;
 
     Tensor2D H_inv_Ru_tensor = barE_Ru*unitQ_bar_tensor;
  

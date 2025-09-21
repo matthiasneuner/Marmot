@@ -9,12 +9,47 @@ namespace Marmot::Materials {
 
   namespace WiechertInterface {
 
-    Properties generateRetardationTimes( int n, double min, double spacing )
-    { //std::cout<<"Inside generateRetardationTimes"<<std::endl;
-      Properties retardationTimes( n );
-      for ( int i = 0; i < n; i++ )
-        retardationTimes( i ) = min * std::pow( spacing, i );
-      return retardationTimes;
+    //Properties generateRetardationTimes( int n, double min, double spacing )
+    //{ //std::cout<<"Inside generateRetardationTimes"<<std::endl;
+    //  Properties retardationTimes( n );
+    //  for ( int i = 0; i < n; i++ )
+    //    retardationTimes( i ) = min * std::pow( spacing, i );
+    //  return retardationTimes;
+    //}
+    Properties initialize_elasticModuli_Ru(int nMaxwell_Ru, 
+                                           double n_Ru)
+    {
+    Properties elasticModuli_Ru(nMaxwell_Ru);
+    std::cout<<"Size Ru"<<elasticModuli_Ru.size();
+    elasticModuli_Ru<< n_Ru;
+    return elasticModuli_Ru;
+    }
+
+    Properties initialize_elasticModuli_Rs(int nMaxwell_Rs, 
+                                           double n_Rs)
+    {
+    Properties elasticModuli_Rs(nMaxwell_Rs);
+    std::cout<<"Size Rs"<<elasticModuli_Rs.size();
+    elasticModuli_Rs<< n_Rs;
+    return elasticModuli_Rs;
+    }
+    
+    Properties initialize_retardationTimes_Ru(int nMaxwell_Ru, 
+                                           double m_Ru)
+    {
+    Properties retardationTimes_Ru(nMaxwell_Ru);
+    std::cout<<"Size Ru"<<retardationTimes_Ru.size();
+    retardationTimes_Ru<< m_Ru;
+    return retardationTimes_Ru;
+    }
+
+    Properties initialize_retardationTimes_Rs(int nMaxwell_Rs, 
+                                           double m_Rs)
+    {
+    Properties retardationTimes_Rs(nMaxwell_Rs);
+    std::cout<<"Size Ru"<<retardationTimes_Rs.size();  
+    retardationTimes_Rs<< m_Rs;
+    return retardationTimes_Rs;
     }
 
     void evaluateWiechert_Ru( double            dT,

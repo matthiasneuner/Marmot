@@ -74,28 +74,28 @@ namespace Marmot::Materials {
     const double& h;
     
     /// \brief power law compliance parameter displacement jump
-    const double& m_Ru;
+    const double& mRu;
 
     /// \brief power law exponent displacement jump
-    const double& n_Ru;
+    const double& nRu;
 
     /// \brief number of Kelvin units to approximate the viscoelastic compliance for displacement jump
-    const size_t nMaxwell_Ru;
+    const size_t nMaxwellRu;
 
     /// \brief minimal retardation time used in the viscoelastic Kelvin chain for displacement jump
-    const double& minTau_Ru;
+    const double& minTauRu;
 
     /// \brief power law compliance parameter surface stress
-    const double& m_Rs;
+    const double& mRs;
 
     /// \brief power law exponent surface stress
-    const double& n_Rs;
+    const double& nRs;
 
     /// \brief number of Kelvin units to approximate the viscoelastic compliance for surface stress
-    const size_t nMaxwell_Rs;
+    const size_t nMaxwellRs;
 
     /// \brief minimal retardation time used in the viscoelastic Kelvin chain for surface stress
-    const double& minTau_Rs;
+    const double& minTauRs;
 
     /// \brief ratio of simulation time to days
     const double& timeToDays;
@@ -104,17 +104,17 @@ namespace Marmot::Materials {
 
     public:
       inline const static auto layout = makeLayout( {
-        { .name = "MaxwellStateVars_Ru", .length = 3*1 },
-        { .name = "MaxwellStateVars_Rs", .length = 9*1 },
+        { .name = "MaxwellStateVarsRu", .length = 3*1 },
+        { .name = "MaxwellStateVarsRs", .length = 9*1 },
       } );
 
-      WiechertInterface::mapStateVarMatrix_Ru MaxwellStateVars_Ru;
-      WiechertInterface::mapStateVarMatrix_Rs MaxwellStateVars_Rs;
+      WiechertInterface::mapStateVarMatrixRu MaxwellStateVarsRu;
+      WiechertInterface::mapStateVarMatrixRs MaxwellStateVarsRs;
       
-      LinearViscoElasticInterfaceStateVarManager( double* theStateVarVector, int nMaxwellUnits_Ru, int nMaxwellUnits_Rs )
+      LinearViscoElasticInterfaceStateVarManager( double* theStateVarVector, int nMaxwellUnitsRu, int nMaxwellUnitsRs )
         : MarmotStateVarVectorManager( theStateVarVector, layout ),
-          MaxwellStateVars_Ru( &find( "MaxwellStateVars_Ru" ), 3, nMaxwellUnits_Ru ), 
-          MaxwellStateVars_Rs( &find( "MaxwellStateVars_Rs" ), 9, nMaxwellUnits_Rs )
+          MaxwellStateVarsRu( &find( "MaxwellStateVarsRu" ), 3, nMaxwellUnitsRu ), 
+          MaxwellStateVarsRs( &find( "MaxwellStateVarsRs" ), 9, nMaxwellUnitsRs )
           {};
     };
 
@@ -128,10 +128,10 @@ namespace Marmot::Materials {
     LinearViscoElasticInterface( const double* materialProperties, int nMaterialProperties, int materialNumber );
     
     void computeStress( double*  force,
-                        double*  surface_stress,
-                        double* dStress_dStrain,
+                        double*  surfaceStress,
+                        double* dStressDstrain,
                         const double* dU,
-                        const double* dSurface_strain,
+                        const double* dSurfaceStrain,
                         const double* normal,
                         const double* timeOld,
                         const double  dT,
@@ -144,12 +144,12 @@ namespace Marmot::Materials {
     StateView getStateView( const ::std::string& stateName );
 
   private:
-    WiechertInterface::Properties elasticModuli_Ru;
-    WiechertInterface::Properties elasticModuli_Rs;
-    WiechertInterface::Properties retardationTimes_Ru;
-    WiechertInterface::Properties retardationTimes_Rs;
-    double                  zerothWiechertStiffness_Ru;
-    double                  zerothWiechertStiffness_Rs;
+    WiechertInterface::Properties elasticModuliRu;
+    WiechertInterface::Properties elasticModuliRs;
+    WiechertInterface::Properties relaxationTimesRu;
+    WiechertInterface::Properties relaxationTimesRs;
+    double                  zerothWiechertStiffnessRu;
+    double                  zerothWiechertStiffnessRs;
 
     static constexpr int powerLawApproximationOrder = 2;
   };

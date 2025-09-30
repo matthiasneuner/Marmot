@@ -41,11 +41,11 @@ namespace Marmot::Materials {
     typedef Eigen::VectorXd          Properties;
     typedef Eigen::Map< Properties > mapProperties;
 
-    typedef Eigen::Matrix< double, 3, Eigen::Dynamic > StateVarMatrix_Ru;
-    typedef Eigen::Matrix< double, 9, Eigen::Dynamic > StateVarMatrix_Rs;
+    typedef Eigen::Matrix< double, 3, Eigen::Dynamic > StateVarMatrixRu;
+    typedef Eigen::Matrix< double, 9, Eigen::Dynamic > StateVarMatrixRs;
     
-    typedef Eigen::Map< StateVarMatrix_Ru >               mapStateVarMatrix_Ru;
-    typedef Eigen::Map< StateVarMatrix_Rs >               mapStateVarMatrix_Rs;
+    typedef Eigen::Map< StateVarMatrixRu >               mapStateVarMatrixRu;
+    typedef Eigen::Map< StateVarMatrixRs >               mapStateVarMatrixRs;
     
     //template < int k >
     //Properties computeElasticModuli_Ru( std::function< autodiff::Real< k, double >( autodiff::Real< k, double > ) > phi,
@@ -65,9 +65,8 @@ namespace Marmot::Materials {
      //     elasticModuli_Ru( i ) = 1. /
      //                          ( log( spacing ) / 2. *
      //                            ( KelvinChain::evaluatePostWidderFormula< k >( phi, tau * pow( spacing, -sqrt( 3. ) / 6. ) ) +
-//                                   KelvinChain::evaluatePostWidderFormula< k >( phi, tau * pow( spacing, sqrt( 3. ) / 6. ) ) ) );
-  //      }
-   //   }
+     //                              KelvinChain::evaluatePostWidderFormula< k >( phi, tau * pow( spacing, sqrt( 3. ) / 6. ) ) ) );
+     //   }
 //
 //      return elasticModuli_Ru;
 //    }
@@ -96,54 +95,54 @@ namespace Marmot::Materials {
  //     return elasticModuli_Rs;
   //  }
 
-    Properties generateRetardationTimes( int n, double min, double spacing );
+    //Properties generateRelaxationTimes( int n, double min, double spacing );
 
-    Properties initialize_elasticModuli_Ru(int nMaxwell_Ru, 
-                                           double n_Ru);
+    Properties initializeElasticModuliRu(int nMaxwellRu, 
+                                           double nRu);
 
-    Properties initialize_elasticModuli_Rs(int nMaxwell_Rs, 
-                                           double n_Rs);
-    
-    Properties initialize_retardationTimes_Ru(int nMaxwell_Ru, 
-                                           double m_Ru);
+    Properties initializeElasticModuliRs(int nMaxwellRs, 
+                                           double nRs);
 
-    Properties initialize_retardationTimes_Rs(int nMaxwell_Rs, 
-                                           double m_Rs);
+    Properties initializeRelaxationTimesRu(int nMaxwellRu, 
+                                           double mRu);
+
+    Properties initializeRelaxationTimesRs(int nMaxwellRs, 
+                                           double mRs);
 
 
-    void updateStateVarMatrix_Ru(    const double                    dT,
+    void updateStateVarMatrixRu(    const double                    dT,
                                      Properties                      elasticModuli_Ru,
-                                     Properties                      retardationTimes_Ru,
-                                     Eigen::Ref< StateVarMatrix_Ru > stateVars_Ru,
+                                     Properties                      relaxationTimes_Ru,
+                                     Eigen::Ref< StateVarMatrixRu > stateVarsRu,
                                      const Marmot::Vector3d&         dforce,
                                      const Marmot::Matrix3d&         unitH_inv_ij
                                      );
 
-    void updateStateVarMatrix_Rs(    const double                 dT,
-                                     Properties                   elasticModuli_Rs,
-                                     Properties                   retardationTimes_Rs,
-                                     Eigen::Ref< StateVarMatrix_Rs > stateVars_Rs,
+    void updateStateVarMatrixRs(    const double                 dT,
+                                     Properties                   elasticModuliRs,
+                                     Properties                   relaxationTimesRs,
+                                     Eigen::Ref< StateVarMatrixRs > stateVarsRs,
                                      const Marmot::Vector9d&      dsurface_stress,
                                      const Marmot::Matrix9d&      unitZ_ijkl );
 
-    void evaluateWiechert_Ru(    const double         dT,
-                                    Properties           elasticModuli_Ru,
-                                    Properties           retardationTimes_Ru,
-                                    StateVarMatrix_Ru    stateVars_Ru,
-                                    double&              uniaxialStiffness_Ru,
+    void evaluateWiechertRu(    const double         dT,
+                                    Properties           elasticModuliRu,
+                                    Properties           relaxationTimesRu,
+                                    StateVarMatrixRu     stateVarsRu,
+                                    double&              uniaxialStiffnessRu,
                                     Marmot::Vector3d&    dforce_v,
                                     const double         factor
                                     );
 
-    void evaluateWiechert_Rs(    const double         dT,
-                                    Properties           elasticModuli_Rs,
-                                    Properties           retardationTimes_Rs,
-                                    StateVarMatrix_Rs    stateVars_Rs,
-                                    double&              uniaxialStiffness_Rs,
-                                    Marmot::Vector9d&    dsurface_stress_v,
+    void evaluateWiechertRs(    const double         dT,
+                                    Properties           elasticModuliRs,
+                                    Properties           retardationTimesRs,
+                                    StateVarMatrixRs     stateVarsRs,
+                                    double&              uniaxialStiffnessRs,
+                                    Marmot::Vector9d&    dsurface_stress,
                                     const double         factor );
 
     void computeLambdaAndBeta( double dT, double tau, double& lambda, double& beta );
 
-  } // namespace WienertInterface
+  } // namespace WiechertInterface
 } // namespace Marmot::Materials

@@ -1,4 +1,4 @@
-#include "../include/Marmot/LinearElasticInterface.h"
+#include "Marmot/LinearElasticInterface.h"
 #include "Marmot/MarmotMaterialRegistrationHelper.h"
 
 namespace Marmot::Materials {

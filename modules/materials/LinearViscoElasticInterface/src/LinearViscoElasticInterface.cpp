@@ -251,6 +251,6 @@ namespace Marmot::Materials {
 
   int LinearViscoElasticInterface::getNumberOfRequiredStateVars()
   {
-    return LinearViscoElasticInterfaceStateVarManager::layout.nRequiredStateVars; 
+    return LinearViscoElasticInterfaceStateVarManager::layout.nRequiredStateVars+3*nMaxwellRu+9*nMaxwellRs;
   }
 } // namespace Marmot::Materials

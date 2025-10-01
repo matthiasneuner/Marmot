@@ -10,7 +10,7 @@
 #include "Marmot/MarmotVoigt.h"
 
 #include "Fastor/Fastor.h"
-#include "Marmot/interface_material_helper_functions.h"
+#include "Marmot/MarmotInterfaceMaterialHelperFunctions.h"
 #include <Eigen/src/Core/Matrix.h>
 #include <Eigen/src/Core/util/Constants.h>
 #include <Fastor/expressions/linalg_ops/unary_norm_op.h>
@@ -99,6 +99,8 @@ namespace Marmot::Materials {
                                                    const double  dT,
                                                    double&       pNewDT)
   {
+    using namespace Marmot::Materials::InterfaceMaterialHelperFunctions;
+
     // map to force, surface stress, displacement, surface strain, normal and tangent stiffness 
     // use Fastor because we really need to use the einsum 
     //std::cout<<"Inside proper file\n";
@@ -114,7 +116,7 @@ namespace Marmot::Materials {
     Fastor::Tensor<double,18,1> dSurfaceStrainFtensor(dSurfaceStrainFtensorConst.data());
     Fastor::Tensor<double,3> normalFtensor(normalFtensorConst.data());
 
-    auto [Z_ijkl, H_inv_ij, H_inv_nF_ijk, Yn_H_inv_Fn_ijkl] = calculate_interface_material_parameters(normalFtensor, E_M, nu_M, E_I, nu_I, E_0, nu_0);
+    auto [Z_ijkl, H_inv_ij, H_inv_nF_ijk, Yn_H_inv_Fn_ijkl] = calculateInterfaceMaterialParameters(normalFtensor, E_M, nu_M, E_I, nu_I, E_0, nu_0);
     
     //Assign the material matrices to a larger structure. (Not necessary ...)
     Eigen::Matrix<double, 21, 21> Cel = Eigen::Matrix<double, 21,21>::Zero();
@@ -164,7 +166,7 @@ namespace Marmot::Materials {
 
     //Evaluate effective compliances due to the displacement jump and the surface stress
 
-    auto [H_inv_ij_effective, Z_ijkl_effective, unitH_inv_voigt_full, unitZ_voigt_full] = calculate_effective_properties(zerothWiechertStiffnessRu,
+    auto [H_inv_ij_effective, Z_ijkl_effective, unitH_inv_voigt_full, unitZ_voigt_full] = calculateEffectiveProperties(zerothWiechertStiffnessRu,
                                                                                                                         creepRuStiffness,
                                                                                                                         zerothWiechertStiffnessRs,
                                                                                                                         creepRsStiffness,

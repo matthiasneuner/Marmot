@@ -7,7 +7,7 @@
 #include "Marmot/MarmotVoigt.h"
 
 #include "Fastor/Fastor.h"
-#include "Marmot/interface_material_helper_functions.h"
+#include "Marmot/MarmotInterfaceMaterialHelperFunctions.h"
 #include <Fastor/tensor/TensorMap.h>
 
 namespace Marmot::Materials {
@@ -37,6 +37,8 @@ namespace Marmot::Materials {
                                               const double  dT,
                                               double&       pNewDT)
   {
+    using namespace Marmot::Materials::InterfaceMaterialHelperFunctions;
+
     // elasticity parameters
     const double& E_M  = this->materialProperties[0];
     const double& nu_M = this->materialProperties[1];
@@ -68,7 +70,7 @@ namespace Marmot::Materials {
     //std:: cout << "dSurface_strain:" << dSurface_strain[0] << "," << dSurface_strain[18-1]<< std::endl;
     //std:: cout << "normal:" << normal[0] << "," << normal[3-1] << std::endl;
 
-    auto [Z_ijkl, H_inv_ij, H_inv_nF_ijk, Yn_H_inv_Fn_ijkl] = calculate_interface_material_parameters(normal_ftensor, E_M, nu_M, E_I, nu_I, E_0, nu_0); 
+    auto [Z_ijkl, H_inv_ij, H_inv_nF_ijk, Yn_H_inv_Fn_ijkl] = calculateInterfaceMaterialParameters(normal_ftensor, E_M, nu_M, E_I, nu_I, E_0, nu_0); 
     
     //std:: cout << "Z_ijkl:" << Z_ijkl << std::endl;
     //std:: cout << "H_inv_ij:" << H_inv_ij << std::endl;

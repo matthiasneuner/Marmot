@@ -40,39 +40,31 @@ using namespace Fastor;
 using Tensor1D = Fastor::Tensor<double,3>;
 using Tensor2D = Fastor::Tensor<double,3,3>;
 using Tensor3D = Fastor::Tensor<double,3,3,3>;
-using Tensor4D = Fastor::Tensor<double,3,3,3,3 >;
+using Tensor4D = Fastor::Tensor<double,3,3,3,3>;
 
-//void assert_consistent_arrays_indices(
-//   const Tensor4D& L , 
-//   Tensor4D& A , 
-//   Tensor4D& B , 
-//   const Tensor4D& M ,  
-//   const Tensor2D& I
-//    );
+namespace Marmot::Materials{
 
+    namespace InterfaceMaterialHelperFunctions{ 
+        void assert_equivalent_F_Falt_Y(
+            Tensor4D F ,
+            Tensor4D Y ,
+            Tensor4D A_0 ,
+            Tensor4D L_0 ,
+            Tensor4D A_M ,
+            Tensor4D L_M ,
+            Tensor4D A_I ,
+            Tensor4D L_I 
+         );
 
-void assert_equivalent_F_Falt_Y(
-    Tensor4D F ,
-    Tensor4D Y ,
-    Tensor4D A_0 ,
-    Tensor4D L_0 ,
-    Tensor4D A_M ,
-    Tensor4D L_M ,
-    Tensor4D A_I ,
-    Tensor4D L_I 
-    );
-void assert_Z_ijkl(Tensor4D Z_ijkl, Tensor1D normal, double E);
-void assert_Q_ij_G_ij(Tensor2D Q_ij, Tensor1D normal, double E);
+        Tensor2D compute_inv( const Tensor2D& I, Tensor2D& Q );
 
-Tensor2D compute_inv( const Tensor2D& I, Tensor2D& Q );
-
-std::tuple<Tensor4D, const Tensor4D, Tensor4D, Tensor2D>interface_geometry_system_couplings( const Tensor2D& I,
+        std::tuple<Tensor4D, const Tensor4D, Tensor4D, Tensor2D>interfaceGeometrySystemCouplings( const Tensor2D& I,
                                           const Tensor2D& N,
                                           const Tensor2D& T,
                                           const Tensor4D& L
                                          );
 
-std::tuple<Tensor4D, Tensor2D, Tensor3D, Tensor4D> calculate_material_matrices(const Tensor1D& normal,
+        std::tuple<Tensor4D, Tensor2D, Tensor3D, Tensor4D> calculateMaterialMatrices(const Tensor1D& normal,
                                  const Tensor2D& I,  
                                  const Tensor2D& N, 
                                  const Tensor2D& T, 
@@ -81,19 +73,23 @@ std::tuple<Tensor4D, Tensor2D, Tensor3D, Tensor4D> calculate_material_matrices(c
                                  const Tensor4D& C_I_aibj
                                 );
 
-template <typename T>
-//Tensor4D voigt_full_to_tensor(const Matrix<T, 9, 9>& M_matrix);
-//Tensor4D voigtToTensor(const Eigen::Matrix<double,6,6> &voigtStiffness);
-Tensor4D voigtToStiffness(const Eigen::Matrix<double,6,6> &voigtStiffness);
-//Tensor4D voigtToStiffness2(const Eigen::Matrix<double,6,6> &voigtStiffness);
+        Tensor4D voigtToStiffness(const Eigen::Matrix<double,6,6> &voigtStiffness);
 
-//Eigen::Matrix<double, 9, 9> create_isotropic_elasticity_tensor(double E, double nu);
+        Eigen::Matrix<double,9,9> convert4thOrderTensorToMatrix(const Tensor4D& tensor);
+        Eigen::Matrix<double,9,3> convert3rdOrderTensorToMatrix(const Tensor3D& tensor);
+        Eigen::Matrix<double,3,3> convert2ndOrderTensorToMatrix(const Tensor2D& tensor);
 
-Eigen::Matrix<double,9,9> convert4thOrderTensorToMatrix(const Tensor4D& tensor);
-Eigen::Matrix<double,9,3> convert3rdOrderTensorToMatrix(const Tensor3D& tensor);
-Eigen::Matrix<double,3,3>convert2ndOrderTensorToMatrix(const Tensor2D& tensor);
+        std::tuple<Tensor4D, Tensor4D, Tensor4D, Tensor4D, Tensor4D, Tensor4D, Tensor4D, Tensor4D, 
+        Tensor2D, Tensor2D, Tensor2D, Tensor4D, Tensor4D, Tensor4D> calculateFY(
+                                 const Tensor2D& I,
+                                 const Tensor2D& N, 
+                                 const Tensor2D& T, 
+                                 const Tensor4D& C_0_aibj,
+                                 const Tensor4D& C_M_aibj,
+                                 const Tensor4D& C_I_aibj
+                                );
 
-std::tuple<Tensor4D, Tensor2D, Tensor3D, Tensor4D>  calculate_interface_material_parameters(
+        std::tuple<Tensor4D, Tensor2D, Tensor3D, Tensor4D>  calculateInterfaceMaterialParameters(
                                                                     const Tensor1D& normal,
                                                                     const double& E_M,
                                                                     const double& nu_M,
@@ -102,24 +98,8 @@ std::tuple<Tensor4D, Tensor2D, Tensor3D, Tensor4D>  calculate_interface_material
                                                                     const double& E_0,
                                                                     const double& nu_0);
 
-std::tuple< Eigen::Matrix<double,3,3>, Eigen::Matrix<double,9,9>, double, double, double>calculate_unitcompliance_interface(
-                                                                                 const Tensor1D& normal,
-                                                                                 const double& E_M,
-                                                                                 const double& nu_M,
-                                                                                 const double& E_I,
-                                                                                 const double& nu_I,
-                                                                                 const double& E_0,
-                                                                                 const double& nu_0);
 
-
-std::tuple<Tensor2D, Tensor4D>calculate_effective_properties(const double& barC_Ju,
-                                                             const double& barC_Js, 
-                                                             const Tensor1D& normal,
-                                                             const double& nu_bar
-                                                             );
-
-
-std::tuple<Tensor2D, Tensor4D, Eigen::Matrix<double,3,3>, Eigen::Matrix<double,9,9>>calculate_effective_properties(
+        std::tuple<Tensor2D, Tensor4D, Eigen::Matrix<double,3,3>, Eigen::Matrix<double,9,9>>calculateEffectiveProperties(
                                                                                            double& zerothWienertStiffness_Ru,
                                                                                            double& creep_Ru_stiffness,
                                                                                            double& zerothWienertStiffness_Rs,
@@ -130,5 +110,6 @@ std::tuple<Tensor2D, Tensor4D, Eigen::Matrix<double,3,3>, Eigen::Matrix<double,9
                                                                                            const double& E_I,
                                                                                            const double& nu_I,
                                                                                            const double& E_0,
-                                                                                           const double& nu_0);                                                             
-
+                                                                                           const double& nu_0);
+    } // namespace Marmot::Materials::InterfaceMaterialHelperFunctions
+} // namespace Marmot::Materials

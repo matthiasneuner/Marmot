@@ -1,6 +1,6 @@
 #include "Marmot/MarmotElasticity.h"
 #include "Marmot/MarmotKelvinChain.h"
-#include "Marmot/interface_material_helper_functions.h"
+#include "Marmot/MarmotInterfaceMaterialHelperFunctions.h"
 #include "Marmot/MarmotTesting.h"
 #include "Marmot/MarmotWiechertInterface.h"
 #include "Marmot/MarmotViscoelasticity.h"
@@ -9,6 +9,7 @@
 using namespace Marmot::Testing;
 using namespace Marmot::Materials::WiechertInterface;
 using namespace Marmot::ContinuumMechanics::Viscoelasticity;
+using namespace Marmot::Materials::InterfaceMaterialHelperFunctions;
 using namespace Marmot;
 
 void evaluateWIandUpdateStateVarsTestFunction()
@@ -94,7 +95,7 @@ void evaluateWIandUpdateStateVarsTestFunction()
   double const normal[3] = { 0., 0., 1. };
   Fastor::TensorMap<double const,3> normalFtensor(normal);
 
-  auto [H_inv_ij_effective, Z_ijkl_effective, unitH_inv_voigt_full, unitZ_voigt_full] = calculate_effective_properties(zerothWiechertStiffnessRu,
+  auto [H_inv_ij_effective, Z_ijkl_effective, unitH_inv_voigt_full, unitZ_voigt_full] = calculateEffectiveProperties(zerothWiechertStiffnessRu,
                                                                                                                         uniaxialStiffnessRu,
                                                                                                                         zerothWiechertStiffnessRs,
                                                                                                                         uniaxialStiffnessRs,

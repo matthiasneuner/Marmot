@@ -8,7 +8,7 @@
 #include "Marmot/MarmotVoigt.h"
 #include <iostream>
 #include "Fastor/Fastor.h"
-#include "Marmot/interface_material_helper_functions.h"
+#include "Marmot/MarmotInterfaceMaterialHelperFunctions.h"
 
 using namespace Eigen;
 using namespace Fastor;

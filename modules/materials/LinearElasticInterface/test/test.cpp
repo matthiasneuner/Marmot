@@ -1,6 +1,6 @@
 #include "Marmot/Marmot.h"
 #include "Marmot/MarmotElasticity.h"
-#include "Marmot/interface_material_helper_functions.h"
+#include "Marmot/MarmotInterfaceMaterialHelperFunctions.h"
 #include "Marmot/LinearElasticInterface.h"
 #include "Marmot/MarmotMaterialHypoElasticInterface.h"
 #include "Marmot/MarmotTesting.h"
@@ -13,6 +13,7 @@
 using namespace Marmot::Testing;
 using namespace Marmot::ContinuumMechanics::Elasticity::Isotropic;
 using namespace Marmot::ContinuumMechanics::Elasticity::TransverseIsotropic;
+using namespace Marmot::Materials::InterfaceMaterialHelperFunctions;
 
 // Function to create a MarmotMaterialHypoElastic object
 // Inputs:

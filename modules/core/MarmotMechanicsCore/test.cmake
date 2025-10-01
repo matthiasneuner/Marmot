@@ -31,6 +31,9 @@ add_marmot_test("TestMarmotViscoelasticity" "${CURR_TEST_SOURCE_DIR}/TestMarmotV
 # Tests for MarmotVoigt
 add_marmot_test("TestMarmotVoigt" "${CURR_TEST_SOURCE_DIR}/TestMarmotVoigt.cpp")
 
+# Tests for MarmotInterfaceMaterialHelperFunctions
+add_marmot_test("TestMarmotInterfaceMaterialHelperFunctions" "${CURR_TEST_SOURCE_DIR}/TestMarmotInterfaceMaterialHelperFunctions.cpp")
+
 # Tests for MarmotWiechertInterface
 add_marmot_test("TestMarmotWiechertInterface" "${CURR_TEST_SOURCE_DIR}/TestMarmotWiechertInterface.cpp")
 

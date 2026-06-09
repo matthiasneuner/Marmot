@@ -80,175 +80,154 @@ namespace Marmot::Elements {
       qp.managedStateVars->totalStrainEnergy   = ( elasticEnergyDensity + dissipation ) * qp.J0xW;
       qp.managedStateVars->strain += dE;
 
+      // =====================================================================
       // --- GEOMETRY & KINEMATIC SETUP FOR STABILIZATION ---
+      // =====================================================================
+
+      // [UPDATED] Map interleaved memory to 3x8 Column-Major Matrices
+      // Rows = x, y, z. Columns = Node 0 -> 7.
+      using Matrix3x8d = Eigen::Matrix< double, 3, 8 >;
+      Map< const Matrix3x8d > U( QTotal.data() );
+      Map< Matrix3x8d >       Pe_mat( Pe.data() );
+
       // Nodal parametric coordinates
       const double xi[8]   = { -1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0 };
       const double eta[8]  = { -1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0 };
       const double zeta[8] = { -1.0, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0 };
 
       // Extract central Inverse Jacobian and compute physical volume
-      const dNdXiSized    dNdXi0     = this->dNdXi( qp.xi );
-      const JacobianSized J0         = this->Jacobian( dNdXi0 );
-      const JacobianSized invJ_eigen = J0.inverse();
-
-      double invJ[3][3];
-      for ( int i = 0; i < 3; ++i ) {
-        for ( int j = 0; j < 3; ++j ) {
-          invJ[i][j] = invJ_eigen( i, j );
-        }
-      }
+      const dNdXiSized    dNdXi0 = this->dNdXi( qp.xi );
+      const JacobianSized J0     = this->Jacobian( dNdXi0 );
+      const JacobianSized dxi_dx = J0.inverse();
 
       const double V = 8.0 * qp.detJ; // Physical volume of the element
 
-      // Extract total nodal displacements
-      double u_A[8][3];
-      for ( int A = 0; A < 8; ++A ) {
-        u_A[A][0] = QTotal( A * 3 + 0 );
-        u_A[A][1] = QTotal( A * 3 + 1 );
-        u_A[A][2] = QTotal( A * 3 + 2 );
-      }
-
-      // Inline helper array for Voigt mapping
+      // Inline helper array mapping spatial directions to the 6 Voigt stress components
+      // ABAQUS ORDER: 0=xx, 1=yy, 2=zz, 3=xy, 4=xz, 5=yz
       const int voigt_map[3][3] = {
-        { 0, 5, 4 }, // i=0 (x): 11->0, 12->5, 13->4
-        { 5, 1, 3 }, // i=1 (y): 21->5, 22->1, 23->3
-        { 4, 3, 2 }  // i=2 (z): 31->4, 32->3, 33->2
+        { 0, 3, 4 }, // i=0 (x): 11->0, 12->3, 13->4
+        { 3, 1, 5 }, // i=1 (y): 21->3, 22->1, 23->5
+        { 4, 5, 2 }  // i=2 (z): 31->4, 32->5, 33->2
       };
 
+      // =====================================================================
       // --- 1. FIRST-ORDER STABILIZATION (f_stab1) ---
-      // Mixed parametric gradients packed as: [21, 31, 12, 32, 13, 23]
-      double N_A_alpha[8][6];
-      for ( int A = 0; A < 8; ++A ) {
-        N_A_alpha[A][0] = 0.125 * xi[A] * eta[A];
-        N_A_alpha[A][1] = 0.125 * xi[A] * zeta[A];
-        N_A_alpha[A][2] = 0.125 * xi[A] * eta[A];
-        N_A_alpha[A][3] = 0.125 * eta[A] * zeta[A];
-        N_A_alpha[A][4] = 0.125 * xi[A] * zeta[A];
-        N_A_alpha[A][5] = 0.125 * eta[A] * zeta[A];
-      }
+      // =====================================================================
 
-      double N_mix[8][3][3] = { 0.0 };
+      // Pre-compute dense mixed physical-parametric shape function gradients
+      double d2N_dXdXi[8][3][3] = { 0.0 };
       for ( int A = 0; A < 8; ++A ) {
+        double N21 = 0.125 * xi[A] * eta[A];
+        double N31 = 0.125 * xi[A] * zeta[A];
+        double N12 = 0.125 * xi[A] * eta[A];
+        double N32 = 0.125 * eta[A] * zeta[A];
+        double N13 = 0.125 * xi[A] * zeta[A];
+        double N23 = 0.125 * eta[A] * zeta[A];
+
         for ( int i = 0; i < 3; ++i ) {
-          N_mix[A][i][0] = N_A_alpha[A][0] * invJ[1][i] + N_A_alpha[A][1] * invJ[2][i];
-          N_mix[A][i][1] = N_A_alpha[A][2] * invJ[0][i] + N_A_alpha[A][3] * invJ[2][i];
-          N_mix[A][i][2] = N_A_alpha[A][4] * invJ[0][i] + N_A_alpha[A][5] * invJ[1][i];
+          d2N_dXdXi[A][i][0] = N21 * dxi_dx( 1, i ) + N31 * dxi_dx( 2, i );
+          d2N_dXdXi[A][i][1] = N12 * dxi_dx( 0, i ) + N32 * dxi_dx( 2, i );
+          d2N_dXdXi[A][i][2] = N13 * dxi_dx( 0, i ) + N23 * dxi_dx( 1, i );
         }
       }
 
-      // Spatial gradients of engineering Voigt strain
-      double deps_alpha[6][3] = { 0.0 };
+      using Matrix6x3d       = Eigen::Matrix< double, 6, 3 >;
+      Matrix6x3d dStrain_dXi = Matrix6x3d::Zero();
+
+      // [UPDATED] Assemble spatial strain gradients using U(dim, Node)
       for ( int alpha = 0; alpha < 3; ++alpha ) {
         for ( int A = 0; A < 8; ++A ) {
-          deps_alpha[0][alpha] += N_mix[A][0][alpha] * u_A[A][0];
-          deps_alpha[1][alpha] += N_mix[A][1][alpha] * u_A[A][1];
-          deps_alpha[2][alpha] += N_mix[A][2][alpha] * u_A[A][2];
-          deps_alpha[3][alpha] += N_mix[A][2][alpha] * u_A[A][1] + N_mix[A][1][alpha] * u_A[A][2];
-          deps_alpha[4][alpha] += N_mix[A][2][alpha] * u_A[A][0] + N_mix[A][0][alpha] * u_A[A][2];
-          deps_alpha[5][alpha] += N_mix[A][1][alpha] * u_A[A][0] + N_mix[A][0][alpha] * u_A[A][1];
+          dStrain_dXi( 0, alpha ) += d2N_dXdXi[A][0][alpha] * U( 0, A );                                      // xx
+          dStrain_dXi( 1, alpha ) += d2N_dXdXi[A][1][alpha] * U( 1, A );                                      // yy
+          dStrain_dXi( 2, alpha ) += d2N_dXdXi[A][2][alpha] * U( 2, A );                                      // zz
+          dStrain_dXi( 3, alpha ) += d2N_dXdXi[A][1][alpha] * U( 0, A ) + d2N_dXdXi[A][0][alpha] * U( 1, A ); // xy
+          dStrain_dXi( 4, alpha ) += d2N_dXdXi[A][2][alpha] * U( 0, A ) + d2N_dXdXi[A][0][alpha] * U( 2, A ); // xz
+          dStrain_dXi( 5, alpha ) += d2N_dXdXi[A][2][alpha] * U( 1, A ) + d2N_dXdXi[A][1][alpha] * U( 2, A ); // yz
         }
       }
 
-      // Project strain gradients via implicit algorithmic tangent C_alg
-      double dsigma_alpha[6][3] = { 0.0 };
-      for ( int alpha = 0; alpha < 3; ++alpha ) {
-        for ( int I = 0; I < 6; ++I ) {
-          for ( int K = 0; K < 6; ++K ) {
-            dsigma_alpha[I][alpha] += C_alg( I, K ) * deps_alpha[K][alpha];
-          }
-        }
-      }
+      Matrix6x3d dsigma_dXi = C_alg * dStrain_dXi;
 
-      const double scale1        = V / 3.0;
-      double       f_stab1[8][3] = { 0.0 };
+      Matrix3x8d   F_stab1                               = Matrix3x8d::Zero();
+      const double secondMomentOfArea_Parametric_Element = V / 3.0;
 
       for ( int A = 0; A < 8; ++A ) {
         for ( int j = 0; j < 3; ++j ) {
           for ( int i = 0; i < 3; ++i ) {
             int    I           = voigt_map[i][j];
             double contraction = 0.0;
-            contraction += N_mix[A][i][0] * dsigma_alpha[I][0];
-            contraction += N_mix[A][i][1] * dsigma_alpha[I][1];
-            contraction += N_mix[A][i][2] * dsigma_alpha[I][2];
-            f_stab1[A][j] += scale1 * contraction;
+            contraction += d2N_dXdXi[A][i][0] * dsigma_dXi( I, 0 );
+            contraction += d2N_dXdXi[A][i][1] * dsigma_dXi( I, 1 );
+            contraction += d2N_dXdXi[A][i][2] * dsigma_dXi( I, 2 );
+            F_stab1( j, A ) += secondMomentOfArea_Parametric_Element * contraction; // Note index flip: (j, A)
           }
         }
       }
 
+      // =====================================================================
       // --- 2. SECOND-ORDER STABILIZATION (f_stab2) ---
-      double Gamma[8];
-      double u_Gamma[3] = { 0.0, 0.0, 0.0 };
+      // =====================================================================
+
+      using Vector8d = Eigen::Matrix< double, 8, 1 >;
+      Vector8d Gamma;
       for ( int A = 0; A < 8; ++A ) {
-        Gamma[A] = 0.125 * xi[A] * eta[A] * zeta[A];
-        u_Gamma[0] += Gamma[A] * u_A[A][0];
-        u_Gamma[1] += Gamma[A] * u_A[A][1];
-        u_Gamma[2] += Gamma[A] * u_A[A][2];
+        Gamma( A ) = 0.125 * xi[A] * eta[A] * zeta[A];
       }
 
-      // Fictitious higher-order spatial engineering strain vectors
-      double deps_HG_12[6] = { 0 }, deps_HG_13[6] = { 0 }, deps_HG_23[6] = { 0 };
+      // [UPDATED] U is 3x8, Gamma is 8x1. U * Gamma yields a 3x1 Vector3d directly!
+      Eigen::Vector3d u_Gamma = U * Gamma;
 
-      // eps_HG_12 relies on invJ[2][i] (j_3)
-      deps_HG_12[0] = invJ[2][0] * u_Gamma[0];
-      deps_HG_12[1] = invJ[2][1] * u_Gamma[1];
-      deps_HG_12[2] = invJ[2][2] * u_Gamma[2];
-      deps_HG_12[3] = invJ[2][1] * u_Gamma[2] + invJ[2][2] * u_Gamma[1];
-      deps_HG_12[4] = invJ[2][0] * u_Gamma[2] + invJ[2][2] * u_Gamma[0];
-      deps_HG_12[5] = invJ[2][1] * u_Gamma[0] + invJ[2][0] * u_Gamma[1];
+      using Vector6d = Eigen::Matrix< double, 6, 1 >;
+      Vector6d deps_HG_12, deps_HG_13, deps_HG_23;
 
-      // eps_HG_13 relies on invJ[1][i] (j_2)
-      deps_HG_13[0] = invJ[1][0] * u_Gamma[0];
-      deps_HG_13[1] = invJ[1][1] * u_Gamma[1];
-      deps_HG_13[2] = invJ[1][2] * u_Gamma[2];
-      deps_HG_13[3] = invJ[1][1] * u_Gamma[2] + invJ[1][2] * u_Gamma[1];
-      deps_HG_13[4] = invJ[1][0] * u_Gamma[2] + invJ[1][2] * u_Gamma[0];
-      deps_HG_13[5] = invJ[1][1] * u_Gamma[0] + invJ[1][0] * u_Gamma[1];
+      // eps_HG_12 relies on invJ.row(2) (j_3) - ABAQUS ORDER
+      deps_HG_12( 0 ) = dxi_dx( 2, 0 ) * u_Gamma( 0 );                                 // xx
+      deps_HG_12( 1 ) = dxi_dx( 2, 1 ) * u_Gamma( 1 );                                 // yy
+      deps_HG_12( 2 ) = dxi_dx( 2, 2 ) * u_Gamma( 2 );                                 // zz
+      deps_HG_12( 3 ) = dxi_dx( 2, 1 ) * u_Gamma( 0 ) + dxi_dx( 2, 0 ) * u_Gamma( 1 ); // xy
+      deps_HG_12( 4 ) = dxi_dx( 2, 2 ) * u_Gamma( 0 ) + dxi_dx( 2, 0 ) * u_Gamma( 2 ); // xz
+      deps_HG_12( 5 ) = dxi_dx( 2, 2 ) * u_Gamma( 1 ) + dxi_dx( 2, 1 ) * u_Gamma( 2 ); // yz
 
-      // eps_HG_23 relies on invJ[0][i] (j_1)
-      deps_HG_23[0] = invJ[0][0] * u_Gamma[0];
-      deps_HG_23[1] = invJ[0][1] * u_Gamma[1];
-      deps_HG_23[2] = invJ[0][2] * u_Gamma[2];
-      deps_HG_23[3] = invJ[0][1] * u_Gamma[2] + invJ[0][2] * u_Gamma[1];
-      deps_HG_23[4] = invJ[0][0] * u_Gamma[2] + invJ[0][2] * u_Gamma[0];
-      deps_HG_23[5] = invJ[0][1] * u_Gamma[0] + invJ[0][0] * u_Gamma[1];
+      // eps_HG_13 relies on invJ.row(1) (j_2) - ABAQUS ORDER
+      deps_HG_13( 0 ) = dxi_dx( 1, 0 ) * u_Gamma( 0 );
+      deps_HG_13( 1 ) = dxi_dx( 1, 1 ) * u_Gamma( 1 );
+      deps_HG_13( 2 ) = dxi_dx( 1, 2 ) * u_Gamma( 2 );
+      deps_HG_13( 3 ) = dxi_dx( 1, 1 ) * u_Gamma( 0 ) + dxi_dx( 1, 0 ) * u_Gamma( 1 );
+      deps_HG_13( 4 ) = dxi_dx( 1, 2 ) * u_Gamma( 0 ) + dxi_dx( 1, 0 ) * u_Gamma( 2 );
+      deps_HG_13( 5 ) = dxi_dx( 1, 2 ) * u_Gamma( 1 ) + dxi_dx( 1, 1 ) * u_Gamma( 2 );
 
-      // Project strains via algorithmic tangent C_alg to obtain stress gradients
-      double dsig_HG_12[6] = { 0 }, dsig_HG_13[6] = { 0 }, dsig_HG_23[6] = { 0 };
-      for ( int I = 0; I < 6; ++I ) {
-        for ( int K = 0; K < 6; ++K ) {
-          dsig_HG_12[I] += C_alg( I, K ) * deps_HG_12[K];
-          dsig_HG_13[I] += C_alg( I, K ) * deps_HG_13[K];
-          dsig_HG_23[I] += C_alg( I, K ) * deps_HG_23[K];
-        }
-      }
+      // eps_HG_23 relies on invJ.row(0) (j_1) - ABAQUS ORDER
+      deps_HG_23( 0 ) = dxi_dx( 0, 0 ) * u_Gamma( 0 );
+      deps_HG_23( 1 ) = dxi_dx( 0, 1 ) * u_Gamma( 1 );
+      deps_HG_23( 2 ) = dxi_dx( 0, 2 ) * u_Gamma( 2 );
+      deps_HG_23( 3 ) = dxi_dx( 0, 1 ) * u_Gamma( 0 ) + dxi_dx( 0, 0 ) * u_Gamma( 1 );
+      deps_HG_23( 4 ) = dxi_dx( 0, 2 ) * u_Gamma( 0 ) + dxi_dx( 0, 0 ) * u_Gamma( 2 );
+      deps_HG_23( 5 ) = dxi_dx( 0, 2 ) * u_Gamma( 1 ) + dxi_dx( 0, 1 ) * u_Gamma( 2 );
 
-      // Assemble Element Core Correction Vector
-      double       f_core[3] = { 0.0, 0.0, 0.0 };
-      const double scale2    = V / 9.0;
+      Vector6d dsig_HG_12 = C_alg * deps_HG_12;
+      Vector6d dsig_HG_13 = C_alg * deps_HG_13;
+      Vector6d dsig_HG_23 = C_alg * deps_HG_23;
+
+      Eigen::Vector3d f_core                = Eigen::Vector3d::Zero();
+      const double    fourth_Moment_Of_Area = V / 9.0;
 
       for ( int j = 0; j < 3; ++j ) {
         for ( int i = 0; i < 3; ++i ) {
           int I = voigt_map[i][j];
-          f_core[j] += invJ[2][i] * dsig_HG_12[I] + invJ[1][i] * dsig_HG_13[I] + invJ[0][i] * dsig_HG_23[I];
+          f_core( j ) += dxi_dx( 2, i ) * dsig_HG_12( I ) + dxi_dx( 1, i ) * dsig_HG_13( I ) +
+                         dxi_dx( 0, i ) * dsig_HG_23( I );
         }
-        f_core[j] *= scale2;
       }
+      f_core *= fourth_Moment_Of_Area;
 
-      // Distribute via pure hourglass filter
-      double f_stab2[8][3] = { 0.0 };
-      for ( int A = 0; A < 8; ++A ) {
-        f_stab2[A][0] += Gamma[A] * f_core[0];
-        f_stab2[A][1] += Gamma[A] * f_core[1];
-        f_stab2[A][2] += Gamma[A] * f_core[2];
-      }
+      Matrix3x8d F_stab2 = f_core * Gamma.transpose();
 
+      // =====================================================================
       // --- 3. FINAL FORCE ASSEMBLY ---
-      // Subtract the stabilizing internal forces from the RHS load vector Pe
-      for ( int A = 0; A < 8; ++A ) {
-        Pe( A * 3 + 0 ) -= ( f_stab1[A][0] + f_stab2[A][0] );
-        Pe( A * 3 + 1 ) -= ( f_stab1[A][1] + f_stab2[A][1] );
-        Pe( A * 3 + 2 ) -= ( f_stab1[A][2] + f_stab2[A][2] );
-      }
+      // =====================================================================
+
+      // Subtract stabilizing forces natively from the mapped 3x8 load vector
+      Pe_mat -= ( F_stab1 + F_stab2 );
     }
   };
 

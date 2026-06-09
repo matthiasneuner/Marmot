@@ -14,12 +14,25 @@
           <declname>F</declname>
         </param>
         <briefdescription>
+<para>Computes the Green-Lagrange strain tensor from the deformation gradient. </para>
         </briefdescription>
         <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>F</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>The deformation gradient tensor as a 3x3 matrix. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>The Green-Lagrange strain tensor represented as a 6D vector in Voigt notation. </para>
+</simplesect>
+</para>
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotKinematics.h" line="36" column="40" declfile="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotKinematics.h" declline="36" declcolumn="40"/>
+        <location file="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotKinematics.h" line="40" column="24" declfile="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotKinematics.h" declline="40" declcolumn="24"/>
       </memberdef>
       <memberdef kind="function" id="_marmot_kinematics_8h_1a31b53509041aa50af0e80b41a3dd0edb" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
         <type>Marmot::EigenTensors::Tensor633d</type>
@@ -32,18 +45,31 @@
           <declname>F</declname>
         </param>
         <briefdescription>
+<para>Computes the derivative of the Green-Lagrange strain tensor with respect to the deformation gradient. </para>
         </briefdescription>
         <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>F</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>The deformation gradient tensor as a 3x3 matrix. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>A <formula id="104">$6 \times 3 \times 3$</formula> tensor representing the derivative of the Green-Lagrange strain tensor. </para>
+</simplesect>
+</para>
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotKinematics.h" line="37" column="40" declfile="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotKinematics.h" declline="37" declcolumn="40"/>
+        <location file="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotKinematics.h" line="47" column="40" declfile="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotKinematics.h" declline="47" declcolumn="40"/>
       </memberdef>
     </sectiondef>
     <briefdescription>
     </briefdescription>
     <detaileddescription>
     </detaileddescription>
-    <location file="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotKinematics.h" line="35" column="5"/>
+    <location file="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotKinematics.h" line="33" column="5"/>
   </compounddef>
 </doxygen>

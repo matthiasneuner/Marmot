@@ -46,62 +46,98 @@
           <declname>G31</declname>
         </param>
         <briefdescription>
+<para>Computes the orthotropic compliance tensor <formula id="74">$\mathbb{C}^{-1}$</formula>, defined in the principal material directions <formula id="95">$x_1$</formula>, <formula id="84">$x_2$</formula>, and <formula id="85">$x_3$</formula>. </para>
         </briefdescription>
         <detaileddescription>
-<para>Computes the orthotropic compliance tensor defined in the principal directions of the material <formula id="45">$ x_1 $</formula>,  <formula id="46">$x_2 $</formula> and <formula id="35">$ x_3 $</formula> :          <formula id="47">\[   \displaystyle \mathbb{ C }^{-1} = \begin{bmatrix}
-                  \frac{1}{E_1} &amp; \frac{-\nu_{12}}{E_2} &amp; \frac{-\nu_{13}}{E_3} &amp; 0 &amp; 0 &amp; 0 \\
-                  \frac{-\nu_{12}}{E_2} &amp; \frac{1}{E_2} &amp; \frac{-\nu_{23}}{E_3} &amp; 0 &amp; 0 &amp; 0 \\
-                  \frac{-\nu_{13}}{E_3} &amp; \frac{-\nu_{23}}{E_3} &amp; \frac{1}{E_3} &amp; 0 &amp; 0 &amp; 0 \\
-                0 &amp; 0 &amp; 0 &amp; \frac{1}{G_{12}} &amp; 0 &amp; 0 \\
-                0 &amp; 0 &amp; 0 &amp; 0 &amp; \frac{1}{G_{13}} &amp; 0 \\
-                0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; \frac{1}{G_{23}}
-                  \end{bmatrix}
-\]</formula> from the following independent parameters: <table rows="10" cols="2"><row>
-<entry thead="yes"><para>Parameter </para>
-</entry><entry thead="yes"><para>Description </para>
-</entry></row>
-<row>
-<entry thead="no"><para><formula id="36">$ E_1 $</formula> </para>
-</entry><entry thead="no"><para>Young&apos;s modulus effective in <formula id="45">$ x_1 $</formula> - direction </para>
-</entry></row>
-<row>
-<entry thead="no"><para><formula id="39">$ E_2 $</formula> </para>
-</entry><entry thead="no"><para>Young&apos;s modulus effective in <formula id="34">$ x_2 $</formula> - direction </para>
-</entry></row>
-<row>
-<entry thead="no"><para><formula id="48">$ E_3 $</formula> </para>
-</entry><entry thead="no"><para>Young&apos;s modulus effective in <formula id="35">$ x_3 $</formula> - direction </para>
-</entry></row>
-<row>
-<entry thead="no"><para><formula id="38">$ \nu_{12} $</formula> </para>
-</entry><entry thead="no"><para>Poisson&apos;s ratio effective between <formula id="45">$ x_1 $</formula> and <formula id="34">$ x_2 $</formula> - direction </para>
-</entry></row>
-<row>
-<entry thead="no"><para><formula id="49">$ \nu_{13} $</formula> </para>
-</entry><entry thead="no"><para>Poisson&apos;s ratio effective between <formula id="45">$ x_1 $</formula> and <formula id="35">$ x_3 $</formula> - direction </para>
-</entry></row>
-<row>
-<entry thead="no"><para><formula id="40">$ \nu_{23} $</formula> </para>
-</entry><entry thead="no"><para>Poisson&apos;s ratio effective between <formula id="34">$ x_2 $</formula> and <formula id="35">$ x_3 $</formula> - direction </para>
-</entry></row>
-<row>
-<entry thead="no"><para><formula id="37">$ G_{12} $</formula> </para>
-</entry><entry thead="no"><para>Shear modulus effective between <formula id="45">$ x_1 $</formula> and <formula id="34">$ x_2 $</formula> - direction </para>
-</entry></row>
-<row>
-<entry thead="no"><para><formula id="50">$ G_{13} $</formula> </para>
-</entry><entry thead="no"><para>Shear modulus effective between <formula id="45">$ x_1 $</formula> and <formula id="35">$ x_3 $</formula> - direction </para>
-</entry></row>
-<row>
-<entry thead="no"><para><formula id="41">$ G_{23} $</formula> </para>
-</entry><entry thead="no"><para>Shear modulus effective between <formula id="34">$ x_2 $</formula> and <formula id="35">$ x_3 $</formula> - direction </para>
-</entry></row>
-</table>
+<para><formula id="96">\[  \displaystyle \mathbb{ C }^{-1} = \begin{bmatrix}
+                 \frac{1}{E_1} &amp; \frac{-\nu_{12}}{E_2} &amp; \frac{-\nu_{13}}{E_3} &amp; 0 &amp; 0 &amp; 0 \\
+                 \frac{-\nu_{12}}{E_2} &amp; \frac{1}{E_2} &amp; \frac{-\nu_{23}}{E_3} &amp; 0 &amp; 0 &amp; 0 \\
+                 \frac{-\nu_{13}}{E_3} &amp; \frac{-\nu_{23}}{E_3} &amp; \frac{1}{E_3} &amp; 0 &amp; 0 &amp; 0 \\
+               0 &amp; 0 &amp; 0 &amp; \frac{1}{G_{12}} &amp; 0 &amp; 0 \\
+               0 &amp; 0 &amp; 0 &amp; 0 &amp; \frac{1}{G_{13}} &amp; 0 \\
+               0 &amp; 0 &amp; 0 &amp; 0 &amp; 0 &amp; \frac{1}{G_{23}}
+                 \end{bmatrix}
+\]</formula></para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>E1</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Young&apos;s modulus <formula id="86">$E_1$</formula> in <formula id="97">$ x_1 $</formula> - direction. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>E2</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Young&apos;s modulus <formula id="89">$E_2$</formula> in <formula id="98">$ x_2 $</formula> - direction. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>E3</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Young&apos;s modulus <formula id="99">$E_3$</formula> in <formula id="100">$ x_3 $</formula> - direction. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>nu12</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Poisson&apos;s ratio <formula id="88">$\nu_{12}$</formula> effective between <formula id="97">$ x_1 $</formula> and <formula id="98">$ x_2 $</formula> - direction. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>nu23</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Poisson&apos;s ratio <formula id="90">$\nu_{23}$</formula> effective between <formula id="98">$ x_2 $</formula> and <formula id="100">$ x_3 $</formula> - direction. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>nu13</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Poisson&apos;s ratio <formula id="101">$\nu_{13}$</formula> effective between <formula id="97">$ x_1 $</formula> and <formula id="100">$ x_3 $</formula> - direction. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>G12</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Shear modulus <formula id="87">$G_{12}$</formula> effective between <formula id="97">$ x_1 $</formula> and <formula id="98">$ x_2 $</formula> - direction. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>G23</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Shear modulus <formula id="102">$G_{23}$</formula> effective between <formula id="98">$ x_2 $</formula> and <formula id="100">$ x_3 $</formula> - direction. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>G31</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Shear modulus <formula id="103">$G_{31}$</formula> effective between <formula id="97">$ x_1 $</formula> and <formula id="100">$ x_3 $</formula> - direction. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Compliance tensor <formula id="74">$\mathbb{C}^{-1}$</formula> as a 6x6 matrix. </para>
+</simplesect>
 </para>
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotElasticity.h" line="207" column="16" declfile="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotElasticity.h" declline="207" declcolumn="16"/>
+        <location file="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotElasticity.h" line="252" column="16" declfile="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotElasticity.h" declline="252" declcolumn="16"/>
       </memberdef>
       <memberdef kind="function" id="namespace_marmot_1_1_continuum_mechanics_1_1_elasticity_1_1_orthotropic_1ad347afe8317afe2bf11f9f7c8b76b153" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
         <type>Matrix6d</type>
@@ -146,13 +182,89 @@
           <declname>G31</declname>
         </param>
         <briefdescription>
+<para>Computes the orthotropic stiffness tensor <formula id="93">$ \mathbb{C} $</formula> as inverse of the orthotropic compliance tensor <formula id="94">$ \mathbb{C}^{-1} $</formula>. </para>
         </briefdescription>
         <detaileddescription>
-<para>Computes the orthotropic stiffness tensor <formula id="43">$ \mathbb{C} $</formula> as inverse of the orthotropic compliance tensor <formula id="44">$ \mathbb{C}^{-1} $</formula>. </para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>E1</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Young&apos;s modulus <formula id="86">$E_1$</formula> in <formula id="97">$ x_1 $</formula> - direction. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>E2</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Young&apos;s modulus <formula id="89">$E_2$</formula> in <formula id="98">$ x_2 $</formula> - direction. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>E3</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Young&apos;s modulus <formula id="99">$E_3$</formula> in <formula id="100">$ x_3 $</formula> - direction. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>nu12</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Poisson&apos;s ratio <formula id="88">$\nu_{12}$</formula> effective between <formula id="97">$ x_1 $</formula> and <formula id="98">$ x_2 $</formula> - direction. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>nu23</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Poisson&apos;s ratio <formula id="90">$\nu_{23}$</formula> effective between <formula id="98">$ x_2 $</formula> and <formula id="100">$ x_3 $</formula> - direction. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>nu13</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Poisson&apos;s ratio <formula id="101">$\nu_{13}$</formula> effective between <formula id="97">$ x_1 $</formula> and <formula id="100">$ x_3 $</formula> - direction. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>G12</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Shear modulus <formula id="87">$G_{12}$</formula> effective between <formula id="97">$ x_1 $</formula> and <formula id="98">$ x_2 $</formula> - direction. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>G23</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Shear modulus <formula id="102">$G_{23}$</formula> effective between <formula id="98">$ x_2 $</formula> and <formula id="100">$ x_3 $</formula> - direction. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>G31</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Shear modulus <formula id="103">$G_{31}$</formula> effective between <formula id="97">$ x_1 $</formula> and <formula id="100">$ x_3 $</formula> - direction. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Stiffness tensor <formula id="79">$\mathbb{C}$</formula> as a 6x6 matrix. </para>
+</simplesect>
+</para>
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotElasticity.h" line="220" column="16" declfile="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotElasticity.h" declline="220" declcolumn="16"/>
+        <location file="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotElasticity.h" line="277" column="16" declfile="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotElasticity.h" declline="277" declcolumn="16"/>
       </memberdef>
     </sectiondef>
     <briefdescription>
@@ -160,6 +272,6 @@
     </briefdescription>
     <detaileddescription>
     </detaileddescription>
-    <location file="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotElasticity.h" line="179" column="5"/>
+    <location file="/home/runner/work/Marmot/Marmot/modules/core/MarmotMechanicsCore/include/Marmot/MarmotElasticity.h" line="225" column="5"/>
   </compounddef>
 </doxygen>

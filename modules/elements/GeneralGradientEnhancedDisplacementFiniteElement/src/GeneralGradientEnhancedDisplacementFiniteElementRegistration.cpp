@@ -12,12 +12,6 @@ namespace Marmot::Elements::Registration {
     return []( int elementID ) -> MarmotElement* { return new T( elementID, integrationType, sectionType ); };
   }
 
-  template < class T >
-  MarmotLibrary::MarmotElementFactory::elementFactoryFunction makeFactoryFunctionReduced()
-  {
-    return []( int elementID ) -> MarmotElement* { return new T( elementID ); };
-  }
-
   using namespace MarmotLibrary;
   using namespace Marmot::FiniteElement::Quadrature;
 
@@ -62,12 +56,12 @@ namespace Marmot::Elements::Registration {
                        FullIntegration,
                        GeneralGradientEnhancedDisplacementFiniteElement< 3, 8 >::SectionType::Solid >() );
 
-  const static bool HGSGC3D8_isRegistered = MarmotLibrary::MarmotElementFactory::
-    registerElement( "GC3D8",
+  const static bool GC3D20_isRegistered = MarmotLibrary::MarmotElementFactory::
+    registerElement( "GC3D20",
                      makeFactoryFunction<
-                       GeneralGradientEnhancedDisplacementFiniteElement< 3, 8 >,
+                       GeneralGradientEnhancedDisplacementFiniteElement< 3, 20 >,
                        FullIntegration,
-                       GeneralGradientEnhancedDisplacementFiniteElement< 3, 8 >::SectionType::Solid >() );
+                       GeneralGradientEnhancedDisplacementFiniteElement< 3, 20 >::SectionType::Solid >() );
 
   const static bool GC3D20R_isRegistered = MarmotLibrary::MarmotElementFactory::
     registerElement( "GC3D20R",

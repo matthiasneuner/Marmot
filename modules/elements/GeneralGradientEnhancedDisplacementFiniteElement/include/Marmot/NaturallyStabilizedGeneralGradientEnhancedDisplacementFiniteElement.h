@@ -123,12 +123,14 @@ namespace Marmot::Elements {
         qp.material->computeStress( res, tan, inc );
 
         // Add Bulk Viscosity
-        const double density             = qp.material->getDensity( res.stateVars );
-        const double dilationalWaveSpeed = qp.material->getMaximumWaveSpeed( res );
-        const double I1dE                = dE.head( 3 ).sum();
-        const double p_bv1 = _bulkViscosity * density * dilationalWaveSpeed * _charElemLength * 1. / dT * ( I1dE );
-        for ( int i = 0; i < 3; i++ ) {
-          res.stress( i ) += p_bv1;
+        if ( dT >= 1e-12 ) {
+          const double density             = qp.material->getDensity( res.stateVars );
+          const double dilationalWaveSpeed = qp.material->getMaximumWaveSpeed( res );
+          const double I1dE                = dE.head( 3 ).sum();
+          const double p_bv1 = _bulkViscosity * density * dilationalWaveSpeed * _charElemLength * 1. / dT * ( I1dE );
+          for ( int i = 0; i < 3; i++ ) {
+            res.stress( i ) += p_bv1;
+          }
         }
 
         // Accumulate baseline internal forces

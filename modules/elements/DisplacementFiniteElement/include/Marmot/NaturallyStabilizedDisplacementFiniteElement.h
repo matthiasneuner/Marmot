@@ -114,10 +114,30 @@ namespace Marmot::Elements {
 
       S = state.stress;
 
-      const double I1dE  = dE.head( 3 ).sum(); // Trace of the strain increment (volumetric part)
-      const double p_bv1 = _bulkViscosity * density * dilationalWaveSpeed * _charElemLength * 1. / dT * ( I1dE );
-      for ( int i = 0; i < 3; i++ )
-        S( i ) += p_bv1;
+      if ( dT >= 1e-12 ) {
+        const double I1dE  = dE.head( 3 ).sum(); // Trace of the strain increment (volumetric part)
+        const double p_bv1 = _bulkViscosity * density * dilationalWaveSpeed * _charElemLength * 1. / dT * ( I1dE );
+        for ( int i = 0; i < 3; i++ )
+          S( i ) += p_bv1;
+      }
+
+      // =====================================================================
+      // --- DEVIATORIC TANGENT PROJECTION (SYMMETRIC B-BAR) ---
+      // =====================================================================
+      Eigen::Matrix< double, 6, 6 > P_dev = Eigen::Matrix< double, 6, 6 >::Identity();
+      const double                  third = 1.0 / 3.0;
+      P_dev( 0, 0 )                       = 2.0 * third;
+      P_dev( 0, 1 )                       = -third;
+      P_dev( 0, 2 )                       = -third;
+      P_dev( 1, 0 )                       = -third;
+      P_dev( 1, 1 )                       = 2.0 * third;
+      P_dev( 1, 2 )                       = -third;
+      P_dev( 2, 0 )                       = -third;
+      P_dev( 2, 1 )                       = -third;
+      P_dev( 2, 2 )                       = 2.0 * third;
+
+      // Enable to use deviatoric tangent for the stabilization terms only!
+      // C_alg = (P_dev * C_alg  ).eval();
 
       elasticEnergyDensity = state.elasticEnergyDensity;
       dissipation          = state.dissipation;

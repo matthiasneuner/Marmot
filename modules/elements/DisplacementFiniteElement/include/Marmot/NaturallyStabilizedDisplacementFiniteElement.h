@@ -11,24 +11,26 @@ namespace Marmot::Elements {
   class NaturallyStabilizedC3D8R : public DisplacementFiniteElement< 3, 8 > {
 
     double _bulkViscosity{ 0.06 }; // User-defined bulk viscosity parameter for stabilization
+    double _scaleDownFactor{
+      0.05 }; // User-defined scale factor to reduce the magnitude of stabilization forces (tuning parameter)
     double _charElemLength{ 0.0 }; // Characteristic element length for scaling the bulk viscosity
 
     // ---------------------------------------------------------------------
     // STABILIZATION HISTORY VARIABLES MAPS
-    Eigen::Map< Eigen::Matrix< double, 6, 3 > > _sigma_grad1;
-    Eigen::Map< Eigen::Matrix< double, 6, 1 > > _sigma_grad2_12;
-    Eigen::Map< Eigen::Matrix< double, 6, 1 > > _sigma_grad2_13;
-    Eigen::Map< Eigen::Matrix< double, 6, 1 > > _sigma_grad2_23;
+    Eigen::Map< Eigen::Matrix< double, 6, 3 > > dStress_dXi;
+    Eigen::Map< Eigen::Matrix< double, 6, 1 > > dStress_dXi1_dXi2;
+    Eigen::Map< Eigen::Matrix< double, 6, 1 > > dStress_dXi1_dXi3;
+    Eigen::Map< Eigen::Matrix< double, 6, 1 > > dStress_dXi2_dXi3;
 
   public:
     using Base = DisplacementFiniteElement< 3, 8 >;
 
     NaturallyStabilizedC3D8R( int elementID )
       : Base( elementID, Marmot::FiniteElement::Quadrature::ReducedIntegration, Base::SectionType::Solid ),
-        _sigma_grad1( nullptr ),
-        _sigma_grad2_12( nullptr ),
-        _sigma_grad2_13( nullptr ),
-        _sigma_grad2_23( nullptr )
+        dStress_dXi( nullptr ),
+        dStress_dXi1_dXi2( nullptr ),
+        dStress_dXi1_dXi3( nullptr ),
+        dStress_dXi2_dXi3( nullptr )
     {
       if ( this->qps.size() != 1 ) {
         throw std::invalid_argument(
@@ -47,10 +49,10 @@ namespace Marmot::Elements {
 
     void assignStateVars( double* stateVars, int nStateVars ) override
     {
-      new ( &_sigma_grad1 ) Eigen::Map< Eigen::Matrix< double, 6, 3 > >( stateVars );
-      new ( &_sigma_grad2_12 ) Eigen::Map< Eigen::Matrix< double, 6, 1 > >( stateVars + 18 );
-      new ( &_sigma_grad2_13 ) Eigen::Map< Eigen::Matrix< double, 6, 1 > >( stateVars + 24 );
-      new ( &_sigma_grad2_23 ) Eigen::Map< Eigen::Matrix< double, 6, 1 > >( stateVars + 30 );
+      new ( &dStress_dXi ) Eigen::Map< Eigen::Matrix< double, 6, 3 > >( stateVars );
+      new ( &dStress_dXi1_dXi2 ) Eigen::Map< Eigen::Matrix< double, 6, 1 > >( stateVars + 18 );
+      new ( &dStress_dXi1_dXi3 ) Eigen::Map< Eigen::Matrix< double, 6, 1 > >( stateVars + 24 );
+      new ( &dStress_dXi2_dXi3 ) Eigen::Map< Eigen::Matrix< double, 6, 1 > >( stateVars + 30 );
 
       // Base class state variables (stress, strain, energy, etc.) are stored after the stabilization history variables
       Base::assignStateVars( stateVars + 36, nStateVars - 36 );
@@ -137,7 +139,7 @@ namespace Marmot::Elements {
       P_dev( 2, 2 )                       = 2.0 * third;
 
       // Enable to use deviatoric tangent for the stabilization terms only!
-      // C_alg = (P_dev * C_alg  ).eval();
+      C_alg = ( P_dev * C_alg ).eval();
 
       elasticEnergyDensity = state.elasticEnergyDensity;
       dissipation          = state.dissipation;
@@ -168,7 +170,7 @@ namespace Marmot::Elements {
       // Extract central Inverse Jacobian and compute physical volume
       const dNdXiSized    dNdXi0 = this->dNdXi( qp.xi );
       const JacobianSized J0     = this->Jacobian( dNdXi0 );
-      const JacobianSized dxi_dx = J0.inverse();
+      const JacobianSized dXi_dx = J0.inverse();
 
       const double V = 8.0 * qp.detJ; // Physical volume of the element
 
@@ -194,9 +196,9 @@ namespace Marmot::Elements {
         double N23 = 0.125 * eta[A] * zeta[A];
 
         for ( int i = 0; i < 3; ++i ) {
-          d2N_dXdXi[A][i][0] = N21 * dxi_dx( 1, i ) + N31 * dxi_dx( 2, i );
-          d2N_dXdXi[A][i][1] = N12 * dxi_dx( 0, i ) + N32 * dxi_dx( 2, i );
-          d2N_dXdXi[A][i][2] = N13 * dxi_dx( 0, i ) + N23 * dxi_dx( 1, i );
+          d2N_dXdXi[A][i][0] = N21 * dXi_dx( 1, i ) + N31 * dXi_dx( 2, i );
+          d2N_dXdXi[A][i][1] = N12 * dXi_dx( 0, i ) + N32 * dXi_dx( 2, i );
+          d2N_dXdXi[A][i][2] = N13 * dXi_dx( 0, i ) + N23 * dXi_dx( 1, i );
         }
       }
 
@@ -217,7 +219,7 @@ namespace Marmot::Elements {
 
       // Compute stress gradient INCREMENT and update element history
       Matrix6x3d ddsigma_dXi = C_alg * ddStrain_dXi;
-      this->_sigma_grad1 += ddsigma_dXi;
+      this->dStress_dXi += ddsigma_dXi;
 
       Matrix3x8d   F_stab1                               = Matrix3x8d::Zero();
       const double secondMomentOfArea_Parametric_Element = V / 3.0;
@@ -228,9 +230,9 @@ namespace Marmot::Elements {
           for ( int i = 0; i < 3; ++i ) {
             int    I           = voigt_map[i][j];
             double contraction = 0.0;
-            contraction += d2N_dXdXi[A][i][0] * this->_sigma_grad1( I, 0 );
-            contraction += d2N_dXdXi[A][i][1] * this->_sigma_grad1( I, 1 );
-            contraction += d2N_dXdXi[A][i][2] * this->_sigma_grad1( I, 2 );
+            contraction += d2N_dXdXi[A][i][0] * this->dStress_dXi( I, 0 );
+            contraction += d2N_dXdXi[A][i][1] * this->dStress_dXi( I, 1 );
+            contraction += d2N_dXdXi[A][i][2] * this->dStress_dXi( I, 2 );
             F_stab1( j, A ) += secondMomentOfArea_Parametric_Element * contraction;
           }
         }
@@ -241,45 +243,45 @@ namespace Marmot::Elements {
       // =====================================================================
 
       using Vector8d = Eigen::Matrix< double, 8, 1 >;
-      Vector8d Gamma;
+      Vector8d d3N_dXi1_dXi2_dXi3;
       for ( int A = 0; A < 8; ++A ) {
-        Gamma( A ) = 0.125 * xi[A] * eta[A] * zeta[A];
+        d3N_dXi1_dXi2_dXi3( A ) = 0.125 * xi[A] * eta[A] * zeta[A];
       }
 
       // INCREMENTAL hourglass kinematics: dU * Gamma
-      Eigen::Vector3d du_Gamma = dU * Gamma;
+      Eigen::Vector3d dU_dXi1_dXi2_dXi3 = dU * d3N_dXi1_dXi2_dXi3;
 
       using Vector6d = Eigen::Matrix< double, 6, 1 >;
-      Vector6d ddeps_HG_12, ddeps_HG_13, ddeps_HG_23;
+      Vector6d dStrain_dXi1_dXi2, dStrain_dXi1_dXi3, dStrain_dXi2_dXi3;
 
       // ddeps_HG_12 relies on invJ.row(2) (j_3) - ABAQUS ORDER
-      ddeps_HG_12( 0 ) = dxi_dx( 2, 0 ) * du_Gamma( 0 );                                  // xx
-      ddeps_HG_12( 1 ) = dxi_dx( 2, 1 ) * du_Gamma( 1 );                                  // yy
-      ddeps_HG_12( 2 ) = dxi_dx( 2, 2 ) * du_Gamma( 2 );                                  // zz
-      ddeps_HG_12( 3 ) = dxi_dx( 2, 1 ) * du_Gamma( 0 ) + dxi_dx( 2, 0 ) * du_Gamma( 1 ); // xy
-      ddeps_HG_12( 4 ) = dxi_dx( 2, 2 ) * du_Gamma( 0 ) + dxi_dx( 2, 0 ) * du_Gamma( 2 ); // xz
-      ddeps_HG_12( 5 ) = dxi_dx( 2, 2 ) * du_Gamma( 1 ) + dxi_dx( 2, 1 ) * du_Gamma( 2 ); // yz
+      dStrain_dXi1_dXi2( 0 ) = dXi_dx( 2, 0 ) * dU_dXi1_dXi2_dXi3( 0 );                                           // xx
+      dStrain_dXi1_dXi2( 1 ) = dXi_dx( 2, 1 ) * dU_dXi1_dXi2_dXi3( 1 );                                           // yy
+      dStrain_dXi1_dXi2( 2 ) = dXi_dx( 2, 2 ) * dU_dXi1_dXi2_dXi3( 2 );                                           // zz
+      dStrain_dXi1_dXi2( 3 ) = dXi_dx( 2, 1 ) * dU_dXi1_dXi2_dXi3( 0 ) + dXi_dx( 2, 0 ) * dU_dXi1_dXi2_dXi3( 1 ); // xy
+      dStrain_dXi1_dXi2( 4 ) = dXi_dx( 2, 2 ) * dU_dXi1_dXi2_dXi3( 0 ) + dXi_dx( 2, 0 ) * dU_dXi1_dXi2_dXi3( 2 ); // xz
+      dStrain_dXi1_dXi2( 5 ) = dXi_dx( 2, 2 ) * dU_dXi1_dXi2_dXi3( 1 ) + dXi_dx( 2, 1 ) * dU_dXi1_dXi2_dXi3( 2 ); // yz
 
       // ddeps_HG_13 relies on invJ.row(1) (j_2) - ABAQUS ORDER
-      ddeps_HG_13( 0 ) = dxi_dx( 1, 0 ) * du_Gamma( 0 );
-      ddeps_HG_13( 1 ) = dxi_dx( 1, 1 ) * du_Gamma( 1 );
-      ddeps_HG_13( 2 ) = dxi_dx( 1, 2 ) * du_Gamma( 2 );
-      ddeps_HG_13( 3 ) = dxi_dx( 1, 1 ) * du_Gamma( 0 ) + dxi_dx( 1, 0 ) * du_Gamma( 1 );
-      ddeps_HG_13( 4 ) = dxi_dx( 1, 2 ) * du_Gamma( 0 ) + dxi_dx( 1, 0 ) * du_Gamma( 2 );
-      ddeps_HG_13( 5 ) = dxi_dx( 1, 2 ) * du_Gamma( 1 ) + dxi_dx( 1, 1 ) * du_Gamma( 2 );
+      dStrain_dXi1_dXi3( 0 ) = dXi_dx( 1, 0 ) * dU_dXi1_dXi2_dXi3( 0 );
+      dStrain_dXi1_dXi3( 1 ) = dXi_dx( 1, 1 ) * dU_dXi1_dXi2_dXi3( 1 );
+      dStrain_dXi1_dXi3( 2 ) = dXi_dx( 1, 2 ) * dU_dXi1_dXi2_dXi3( 2 );
+      dStrain_dXi1_dXi3( 3 ) = dXi_dx( 1, 1 ) * dU_dXi1_dXi2_dXi3( 0 ) + dXi_dx( 1, 0 ) * dU_dXi1_dXi2_dXi3( 1 );
+      dStrain_dXi1_dXi3( 4 ) = dXi_dx( 1, 2 ) * dU_dXi1_dXi2_dXi3( 0 ) + dXi_dx( 1, 0 ) * dU_dXi1_dXi2_dXi3( 2 );
+      dStrain_dXi1_dXi3( 5 ) = dXi_dx( 1, 2 ) * dU_dXi1_dXi2_dXi3( 1 ) + dXi_dx( 1, 1 ) * dU_dXi1_dXi2_dXi3( 2 );
 
       // ddeps_HG_23 relies on invJ.row(0) (j_1) - ABAQUS ORDER
-      ddeps_HG_23( 0 ) = dxi_dx( 0, 0 ) * du_Gamma( 0 );
-      ddeps_HG_23( 1 ) = dxi_dx( 0, 1 ) * du_Gamma( 1 );
-      ddeps_HG_23( 2 ) = dxi_dx( 0, 2 ) * du_Gamma( 2 );
-      ddeps_HG_23( 3 ) = dxi_dx( 0, 1 ) * du_Gamma( 0 ) + dxi_dx( 0, 0 ) * du_Gamma( 1 );
-      ddeps_HG_23( 4 ) = dxi_dx( 0, 2 ) * du_Gamma( 0 ) + dxi_dx( 0, 0 ) * du_Gamma( 2 );
-      ddeps_HG_23( 5 ) = dxi_dx( 0, 2 ) * du_Gamma( 1 ) + dxi_dx( 0, 1 ) * du_Gamma( 2 );
+      dStrain_dXi2_dXi3( 0 ) = dXi_dx( 0, 0 ) * dU_dXi1_dXi2_dXi3( 0 );
+      dStrain_dXi2_dXi3( 1 ) = dXi_dx( 0, 1 ) * dU_dXi1_dXi2_dXi3( 1 );
+      dStrain_dXi2_dXi3( 2 ) = dXi_dx( 0, 2 ) * dU_dXi1_dXi2_dXi3( 2 );
+      dStrain_dXi2_dXi3( 3 ) = dXi_dx( 0, 1 ) * dU_dXi1_dXi2_dXi3( 0 ) + dXi_dx( 0, 0 ) * dU_dXi1_dXi2_dXi3( 1 );
+      dStrain_dXi2_dXi3( 4 ) = dXi_dx( 0, 2 ) * dU_dXi1_dXi2_dXi3( 0 ) + dXi_dx( 0, 0 ) * dU_dXi1_dXi2_dXi3( 2 );
+      dStrain_dXi2_dXi3( 5 ) = dXi_dx( 0, 2 ) * dU_dXi1_dXi2_dXi3( 1 ) + dXi_dx( 0, 1 ) * dU_dXi1_dXi2_dXi3( 2 );
 
       // Project increments through tangent and update history
-      this->_sigma_grad2_12 += C_alg * ddeps_HG_12;
-      this->_sigma_grad2_13 += C_alg * ddeps_HG_13;
-      this->_sigma_grad2_23 += C_alg * ddeps_HG_23;
+      this->dStress_dXi1_dXi2 += C_alg * dStrain_dXi1_dXi2;
+      this->dStress_dXi1_dXi3 += C_alg * dStrain_dXi1_dXi3;
+      this->dStress_dXi2_dXi3 += C_alg * dStrain_dXi2_dXi3;
 
       Eigen::Vector3d f_core                = Eigen::Vector3d::Zero();
       const double    fourth_Moment_Of_Area = V / 9.0;
@@ -288,20 +290,24 @@ namespace Marmot::Elements {
       for ( int j = 0; j < 3; ++j ) {
         for ( int i = 0; i < 3; ++i ) {
           int I = voigt_map[i][j];
-          f_core( j ) += dxi_dx( 2, i ) * this->_sigma_grad2_12( I ) + dxi_dx( 1, i ) * this->_sigma_grad2_13( I ) +
-                         dxi_dx( 0, i ) * this->_sigma_grad2_23( I );
+          f_core( j ) +=
+            // clang-format off
+              dXi_dx( 2, i ) * this->dStress_dXi1_dXi2( I ) +
+              dXi_dx( 1, i ) * this->dStress_dXi1_dXi3( I ) +
+              dXi_dx( 0, i ) * this->dStress_dXi2_dXi3( I );
+          // clang-format on
         }
       }
       f_core *= fourth_Moment_Of_Area;
 
-      Matrix3x8d F_stab2 = f_core * Gamma.transpose();
+      Matrix3x8d F_stab2 = f_core * d3N_dXi1_dXi2_dXi3.transpose();
 
       // =====================================================================
       // --- 3. FINAL FORCE ASSEMBLY ---
       // =====================================================================
 
       // Subtract stabilizing forces natively from the mapped 3x8 load vector
-      Pe_mat -= ( F_stab1 + F_stab2 );
+      Pe_mat -= _scaleDownFactor * ( F_stab1 + F_stab2 );
     }
   };
 

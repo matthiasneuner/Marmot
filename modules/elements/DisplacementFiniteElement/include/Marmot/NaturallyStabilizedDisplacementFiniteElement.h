@@ -28,12 +28,25 @@
 
 namespace Marmot::Elements {
 
+  /**
+   * @namespace Marmot::Elements::Hex8NaturalStabilization
+   * @brief Provides helper functions and constants for the natural stabilization of an 8-node hexahedral element
+   * (C3D8R).
+   * @details This stabilization technique is designed to control hourglass (zero-energy) modes that arise from
+   * reduced integration. The formulation is based on the work of Puso and Solberg (2006), "A stabilized nodally
+   * integrated hexahedral element", IJNME. It involves adding stabilization forces and stiffness terms derived from
+   * gradients of the stress field within the element.
+   */
   namespace Hex8NaturalStabilization {
 
-    inline constexpr double xi[8]   = { -1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0 };
-    inline constexpr double eta[8]  = { -1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0 };
+    /// @brief Nodal parent coordinates (xi) for an 8-node hex.
+    inline constexpr double xi[8] = { -1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0 };
+    /// @brief Nodal parent coordinates (eta) for an 8-node hex.
+    inline constexpr double eta[8] = { -1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0 };
+    /// @brief Nodal parent coordinates (zeta) for an 8-node hex.
     inline constexpr double zeta[8] = { -1.0, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0 };
 
+    /// @brief Second derivatives of shape functions w.r.t. xi and eta, evaluated at nodes.
     constexpr double d2N_dXi2_dXi1[8] = { 0.125 * xi[0] * eta[0],
                                           0.125 * xi[1] * eta[1],
                                           0.125 * xi[2] * eta[2],
@@ -42,6 +55,7 @@ namespace Marmot::Elements {
                                           0.125 * xi[5] * eta[5],
                                           0.125 * xi[6] * eta[6],
                                           0.125 * xi[7] * eta[7] };
+    /// @brief Second derivatives of shape functions w.r.t. xi and zeta, evaluated at nodes.
     constexpr double d2N_dXi3_dXi1[8] = { 0.125 * xi[0] * zeta[0],
                                           0.125 * xi[1] * zeta[1],
                                           0.125 * xi[2] * zeta[2],
@@ -50,6 +64,7 @@ namespace Marmot::Elements {
                                           0.125 * xi[5] * zeta[5],
                                           0.125 * xi[6] * zeta[6],
                                           0.125 * xi[7] * zeta[7] };
+    /// @brief Second derivatives of shape functions w.r.t. eta and xi, evaluated at nodes.
     constexpr double d2N_dXi1_dXi2[8] = { 0.125 * xi[0] * eta[0],
                                           0.125 * xi[1] * eta[1],
                                           0.125 * xi[2] * eta[2],
@@ -58,6 +73,7 @@ namespace Marmot::Elements {
                                           0.125 * xi[5] * eta[5],
                                           0.125 * xi[6] * eta[6],
                                           0.125 * xi[7] * eta[7] };
+    /// @brief Second derivatives of shape functions w.r.t. eta and zeta, evaluated at nodes.
     constexpr double d2N_dXi3_dXi2[8] = { 0.125 * eta[0] * zeta[0],
                                           0.125 * eta[1] * zeta[1],
                                           0.125 * eta[2] * zeta[2],
@@ -66,6 +82,7 @@ namespace Marmot::Elements {
                                           0.125 * eta[5] * zeta[5],
                                           0.125 * eta[6] * zeta[6],
                                           0.125 * eta[7] * zeta[7] };
+    /// @brief Second derivatives of shape functions w.r.t. zeta and xi, evaluated at nodes.
     constexpr double d2N_dXi1_dXi3[8] = { 0.125 * xi[0] * zeta[0],
                                           0.125 * xi[1] * zeta[1],
                                           0.125 * xi[2] * zeta[2],
@@ -74,6 +91,7 @@ namespace Marmot::Elements {
                                           0.125 * xi[5] * zeta[5],
                                           0.125 * xi[6] * zeta[6],
                                           0.125 * xi[7] * zeta[7] };
+    /// @brief Second derivatives of shape functions w.r.t. zeta and eta, evaluated at nodes.
     constexpr double d2N_dXi2_dXi3[8] = { 0.125 * eta[0] * zeta[0],
                                           0.125 * eta[1] * zeta[1],
                                           0.125 * eta[2] * zeta[2],
@@ -83,6 +101,7 @@ namespace Marmot::Elements {
                                           0.125 * eta[6] * zeta[6],
                                           0.125 * eta[7] * zeta[7] };
 
+    /// @brief Third derivatives of shape functions w.r.t. xi, eta, and zeta, evaluated at nodes.
     inline const Eigen::Matrix< double, 8, 1 > _d3N_dXi1_dXi2_dXi3 = { 0.125 * xi[0] * eta[0] * zeta[0],
                                                                        0.125 * xi[1] * eta[1] * zeta[1],
                                                                        0.125 * xi[2] * eta[2] * zeta[2],
@@ -97,6 +116,11 @@ namespace Marmot::Elements {
     using Vector6d      = Eigen::Matrix< double, 6, 1 >;
     using JacobianSized = Eigen::Matrix< double, 3, 3 >;
 
+    /**
+     * @brief Constructs the 6x3 kinematic (B) matrix for a single node from a gradient vector.
+     * @param[in] g The gradient vector (e.g., shape function derivatives).
+     * @return The 6x3 B-matrix for a single node.
+     */
     inline Eigen::Matrix< double, 6, 3 > makeBMatrix( const Eigen::Vector3d& g )
     {
       Eigen::Matrix< double, 6, 3 > B = Eigen::Matrix< double, 6, 3 >::Zero();
@@ -112,6 +136,12 @@ namespace Marmot::Elements {
       return B;
     }
 
+    /**
+     * @brief Computes the gradient of the strain tensor with respect to the parent coordinates (dε/dξ).
+     * @param[in] dU The nodal displacement increments (3x8 matrix).
+     * @param[in] d2N_dXdXi Second derivatives of shape functions mapped to physical coordinates.
+     * @return A 6x3 matrix where each column is the derivative of the Voigt strain vector w.r.t. one parent coordinate.
+     */
     inline Matrix6x3d compute_dStrain_dXi( const Matrix3x8d& dU, const double d2N_dXdXi[8][3][3] )
     {
 
@@ -132,6 +162,12 @@ namespace Marmot::Elements {
       return ddStrain_dXi;
     }
 
+    /**
+     * @brief Computes the second-order (hourglass) strain increment terms.
+     * @param[in] dU The nodal displacement increments (3x8 matrix).
+     * @param[in] dXi_dx The inverse of the Jacobian matrix (dξ/dx).
+     * @return A tuple containing the three hourglass strain mode vectors (dε_12, dε_13, dε_23).
+     */
     inline std::tuple< Vector6d, Vector6d, Vector6d > compute_dStrain_dXi1_dXi2_dXi3( const Matrix3x8d&    dU,
                                                                                       const JacobianSized& dXi_dx )
     {
@@ -167,6 +203,14 @@ namespace Marmot::Elements {
       return { dStrain_dXi1_dXi2, dStrain_dXi1_dXi3, dStrain_dXi2_dXi3 };
     }
 
+    /**
+     * @brief Computes the first-order stabilization force vector.
+     * @param[in] dU Nodal displacement increments (not used directly, but for consistency).
+     * @param[in] d2N_dXdXi Second derivatives of shape functions mapped to physical coordinates.
+     * @param[in] _integrationWeightOrder1 Integration weight for the first-order term.
+     * @param[in] dStress_dXi The history variable for the first-order stress gradient.
+     * @return The 3x8 nodal force matrix for the first-order stabilization.
+     */
     inline Matrix3x8d computeFirstOrderStabilizationTerm(
       const Matrix3x8d&                                  dU,
       const double                                       d2N_dXdXi[8][3][3],
@@ -193,6 +237,15 @@ namespace Marmot::Elements {
       return F_stab1;
     }
 
+    /**
+     * @brief Computes the second-order stabilization force vector.
+     * @param[in] _integrationWeightOrder2 Integration weight for the second-order term.
+     * @param[in] dStress_dXi1_dXi2 History variable for the (1,2) hourglass stress mode.
+     * @param[in] dStress_dXi1_dXi3 History variable for the (1,3) hourglass stress mode.
+     * @param[in] dStress_dXi2_dXi3 History variable for the (2,3) hourglass stress mode.
+     * @param[in] dXi_dx The inverse of the Jacobian matrix (dξ/dx).
+     * @return The 3x8 nodal force matrix for the second-order stabilization.
+     */
     inline Matrix3x8d computeSecondOrderStabilizationTerm(
       const double                                       _integrationWeightOrder2,
       const Eigen::Map< Eigen::Matrix< double, 6, 1 > >& dStress_dXi1_dXi2,
@@ -222,6 +275,13 @@ namespace Marmot::Elements {
       return F_stab2;
     }
 
+    /**
+     * @brief Computes the tangent stiffness contribution from the first-order stabilization term.
+     * @param[in] d2N_dXdXi Second derivatives of shape functions mapped to physical coordinates.
+     * @param[in] _integrationWeightOrder1 Integration weight for the first-order term.
+     * @param[in] C The consistent tangent modulus (6x6 matrix).
+     * @return The 24x24 stabilization stiffness matrix for the first-order term.
+     */
     inline Eigen::Matrix< double, 24, 24 > compute_dF_stab1_dQ( const double d2N_dXdXi[8][3][3],
                                                                 const double _integrationWeightOrder1,
                                                                 const Eigen::Matrix< double, 6, 6 >& C )
@@ -248,6 +308,13 @@ namespace Marmot::Elements {
       return K_stab1;
     }
 
+    /**
+     * @brief Computes the tangent stiffness contribution from the second-order stabilization term.
+     * @param[in] _integrationWeightOrder2 Integration weight for the second-order term.
+     * @param[in] C The consistent tangent modulus (6x6 matrix).
+     * @param[in] dXi_dx The inverse of the Jacobian matrix (dξ/dx).
+     * @return The 24x24 stabilization stiffness matrix for the second-order term.
+     */
     inline Eigen::Matrix< double, 24, 24 > compute_dF_stab2_dQ( const double _integrationWeightOrder2,
                                                                 const Eigen::Matrix< double, 6, 6 >& C,
                                                                 const JacobianSized&                 dXi_dx )
@@ -280,33 +347,61 @@ namespace Marmot::Elements {
 
   } // namespace Hex8NaturalStabilization
 
+  /**
+   * @class NaturallyStabilizedC3D8R
+   * @brief A 3D, 8-node, reduced-integration hexahedral element with natural stabilization.
+   * @details This element implements the C3D8R formulation, which uses single-point quadrature
+   * to evaluate the internal forces and stiffness. To counteract the resulting hourglass (zero-energy) modes,
+   * it employs a natural stabilization technique based on the work of Puso and Solberg (2006), "A stabilized
+   * nodally integrated hexahedral element", IJNME.
+   *
+   * The stabilization adds forces and stiffness terms that are functions of the stress gradients within the element.
+   * These terms are stored as history variables and updated incrementally. The element is suitable for both
+   * explicit and implicit time integration schemes.
+   *
+   * @note This element requires 36 additional state variables per element for storing stabilization history,
+   *       in addition to those required by the material model at the single integration point.
+   */
   class NaturallyStabilizedC3D8R : public DisplacementFiniteElement< 3, 8 > {
     using Matrix3x8d = Eigen::Matrix< double, 3, 8 >;
     using Matrix6x3d = Eigen::Matrix< double, 6, 3 >;
     using Vector6d   = Eigen::Matrix< double, 6, 1 >;
 
-    double _bulkViscosity{ 0.06 }; // User-defined bulk viscosity parameter for stabilization
-    double _scaleDownFactor{
-      0.05 }; // User-defined scale factor to reduce the magnitude of stabilization forces (tuning parameter)
-    double _charElemLength{ 0.0 }; // Characteristic element length for scaling the bulk viscosity
-    bool   _useDeviatoricTangentForStabilization{
-      false };                   // Flag to determine whether to use deviatoric tangent for stabilization
+    /// @brief User-defined bulk viscosity parameter for stabilization in explicit dynamics.
+    double _bulkViscosity{ 0.06 };
+    /// @brief User-defined scale factor to reduce the magnitude of stabilization forces (tuning parameter).
+    double _scaleDownFactor{ 0.05 };
+    /// @brief Characteristic element length for scaling the bulk viscosity.
+    double _charElemLength{ 0.0 };
+    /// @brief Flag to determine whether to use the deviatoric part of the tangent for stabilization.
+    bool _useDeviatoricTangentForStabilization{ false };
 
-    // ---------------------------------------------------------------------
-    // STABILIZATION HISTORY VARIABLES MAPS
+    // --- STABILIZATION HISTORY VARIABLES MAPS ---
+    /// @brief Map to the history variable for the first-order stress gradient (dσ/dξ). Size 6x3.
     Eigen::Map< Matrix6x3d > dStress_dXi;
-    Eigen::Map< Voigt >      dStress_dXi1_dXi2;
-    Eigen::Map< Voigt >      dStress_dXi1_dXi3;
-    Eigen::Map< Voigt >      dStress_dXi2_dXi3;
+    /// @brief Map to the history variable for the second-order stress gradient (d²σ/dξ₁dξ₂). Size 6x1.
+    Eigen::Map< Voigt > dStress_dXi1_dXi2;
+    /// @brief Map to the history variable for the second-order stress gradient (d²σ/dξ₁dξ₃). Size 6x1.
+    Eigen::Map< Voigt > dStress_dXi1_dXi3;
+    /// @brief Map to the history variable for the second-order stress gradient (d²σ/dξ₂dξ₃). Size 6x1.
+    Eigen::Map< Voigt > dStress_dXi2_dXi3;
 
+    /// @brief Inverse of the Jacobian matrix at the element center (dξ/dx).
     JacobianSized _dXi_dx;
-    double        _d2N_dXdXi[8][3][3];
-    double        _integrationWeightOrder1;
-    double        _integrationWeightOrder2;
+    /// @brief Second derivatives of shape functions w.r.t. physical and parent coordinates (d²N/dxdξ).
+    double _d2N_dXdXi[8][3][3];
+    /// @brief Integration weight for first-order stabilization terms.
+    double _integrationWeightOrder1;
+    /// @brief Integration weight for second-order stabilization terms.
+    double _integrationWeightOrder2;
 
   public:
     using Base = DisplacementFiniteElement< 3, 8 >;
 
+    /**
+     * @brief Construct a new Naturally Stabilized C3D8R element.
+     * @param[in] elementID Unique element label.
+     */
     NaturallyStabilizedC3D8R( int elementID )
       : Base( elementID, Marmot::FiniteElement::Quadrature::ReducedIntegration, Base::SectionType::Solid ),
         dStress_dXi( nullptr ),
@@ -320,6 +415,12 @@ namespace Marmot::Elements {
       }
     }
 
+    /**
+     * @brief Precomputes geometry-related quantities for the element and its stabilization.
+     * @details This override calls the base class implementation and then computes and stores
+     * stabilization-specific geometric data, such as the inverse Jacobian at the center,
+     * mixed-derivative shape function terms, and integration weights for the stabilization terms.
+     */
     void initializeYourself() override
     {
       Base::initializeYourself();
@@ -348,6 +449,14 @@ namespace Marmot::Elements {
       }
     }
 
+    /**
+     * @brief Maps the provided element state vector to stabilization history and quadrature point state.
+     * @details The first 36 `double` values of the state vector are mapped to the stabilization
+     * history variables (`dStress_dXi`, `dStress_dXi1_dXi2`, etc.). The remainder of the vector
+     * is passed to the base class to manage the state of the single quadrature point.
+     * @param[in] stateVars Pointer to the beginning of the element's state variable array.
+     * @param[in] nStateVars Total number of state variables for this element.
+     */
     void assignStateVars( double* stateVars, int nStateVars ) override
     {
       new ( &dStress_dXi ) Eigen::Map< Eigen::Matrix< double, 6, 3 > >( stateVars );
@@ -359,12 +468,32 @@ namespace Marmot::Elements {
       Base::assignStateVars( stateVars + 36, nStateVars - 36 );
     }
 
+    /**
+     * @brief Returns the total number of required state variables for this element.
+     * @return The sum of state variables for stabilization history (36) and the state variables
+     *         required by the base class (for one quadrature point).
+     */
     int getNumberOfRequiredStateVars() override
     {
       // 36 state variables for stabilization history + base class state variables
       return 36 + Base::getNumberOfRequiredStateVars();
     }
 
+    /**
+     * @brief Computes the internal force vector for explicit dynamics.
+     * @details This method computes the internal force using a single integration point and adds
+     * stabilization forces to control hourglass modes. It also includes a bulk viscosity term
+     * for damping. The tangent stiffness is not computed.
+     *
+     * The stabilization history variables are updated based on the incremental displacement and the
+     * material's tangent modulus.
+     * @param[in] QTotal_ Total displacement vector (not used).
+     * @param[in] dQ_ Incremental displacement vector.
+     * @param[out] Pe_ Element internal force vector (residual).
+     * @param[in] time Current time data.
+     * @param[in] dT Time increment.
+     * @param[out] pNewDT Suggested new time step scaling factor (e.g., if material update fails).
+     */
     void computeYourselfExplicit( const double* QTotal_,
                                   const double* dQ_,
                                   double*       Pe_,
@@ -495,6 +624,22 @@ namespace Marmot::Elements {
       Pe_mat -= _scaleDownFactor * ( F_stab1 + F_stab2 );
     }
 
+    /**
+     * @brief Computes the internal force vector and consistent tangent stiffness matrix for implicit analysis.
+     * @details This method computes the internal force and tangent stiffness using a single integration point.
+     * It then adds the stabilization forces and the corresponding consistent tangent contributions to
+     * control hourglass modes.
+     *
+     * The stabilization history variables and their tangent contributions are updated based on the
+     * incremental displacement and the material's algorithmic tangent.
+     * @param[in] QTotal_ Total displacement vector (not used).
+     * @param[in] dQ_ Incremental displacement vector.
+     * @param[out] Pe_ Element internal force vector (residual).
+     * @param[out] Ke_ Element tangent stiffness matrix.
+     * @param[in] time Current time data.
+     * @param[in] dT Time increment.
+     * @param[out] pNewDT Suggested new time step scaling factor (e.g., if material update fails).
+     */
     void computeYourself( const double* QTotal_,
                           const double* dQ_,
                           double*       Pe_,

@@ -2,6 +2,7 @@
 #include "Marmot/MarmotElementProperty.h"
 #include "Marmot/MarmotFiniteElement.h"
 #include "Marmot/MarmotTesting.h"
+#include "Marmot/NaturallyStabilizedDisplacementFiniteElement.h"
 
 using namespace Marmot;
 using namespace Marmot::Elements;
@@ -227,11 +228,76 @@ void testInitializeYourselfAndShapeFunctions()
   throwExceptionOnFailure( checkIfEqual( qp0.B( 2, 3 ), expected_dN2dx ), "Incorrect B(2,3) for QP0." );
 }
 
+void testNaturallyStabilizedC3D8R()
+{
+  const int elId    = 1;
+  auto      element = std::make_unique< NaturallyStabilizedC3D8R >( elId );
+
+  // 8 nodes in 3D -> 24 node coordinates
+  // Unit cube coordinates [0,1]x[0,1]x[0,1]
+  const std::vector< double > nodeCoordsVec = { 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0,
+                                                0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0 };
+  element->assignNodeCoordinates( nodeCoordsVec.data() );
+
+  const static std::vector< double > matProps = { 10000.0, 0.2, 1.0 };
+  const std::string                  matName  = "LINEARELASTIC";
+  MarmotMaterialSection              materialSection( matName, matProps.data(), matProps.size() );
+
+  const static std::vector< double > elPropsVec = { 1.0 };
+  ElementProperties                  elProps( elPropsVec.data(), elPropsVec.size() );
+
+  element->assignProperty( elProps );
+  element->assignProperty( materialSection );
+
+  const int nStateVarsTotal = element->getNumberOfRequiredStateVars();
+  throwExceptionOnFailure( nStateVarsTotal >= 36, "NaturallyStabilizedC3D8R should have at least 36 state vars." );
+
+  std::vector< double > stateVars( nStateVarsTotal, 0.0 );
+  element->assignStateVars( stateVars.data(), nStateVarsTotal );
+
+  element->initializeYourself();
+
+  // Basic checks
+  throwExceptionOnFailure( element->getNumberOfQuadraturePoints() == 1, "C3D8R must have 1 quadrature point." );
+  throwExceptionOnFailure( element->getNDofPerElement() == 24, "C3D8R must have 24 DOFs (8 nodes * 3 dims)." );
+  throwExceptionOnFailure( element->getElementShape() == "hexa8", "C3D8R must be hexa8 shape." );
+
+  // Coordinates at center should be (0.5, 0.5, 0.5)
+  const std::vector< double > centerCoords = element->getCoordinatesAtCenter();
+  throwExceptionOnFailure( centerCoords.size() == 3, "Center coords should have size 3." );
+  throwExceptionOnFailure( checkIfEqual( centerCoords[0], 0.5 ), "X center coordinate incorrect." );
+  throwExceptionOnFailure( checkIfEqual( centerCoords[1], 0.5 ), "Y center coordinate incorrect." );
+  throwExceptionOnFailure( checkIfEqual( centerCoords[2], 0.5 ), "Z center coordinate incorrect." );
+
+  // Test computeYourself and verify stiffness matrix is symmetric
+  const int       nDof = element->getNDofPerElement();
+  Eigen::VectorXd u    = Eigen::VectorXd::Zero( nDof );
+  Eigen::VectorXd dQ   = Eigen::VectorXd::Zero( nDof );
+  for ( int i = 0; i < nDof; ++i ) {
+    dQ( i ) = 0.01 * ( i + 1 );
+  }
+  Eigen::VectorXd P = Eigen::VectorXd::Zero( nDof );
+  Eigen::MatrixXd K = Eigen::MatrixXd::Zero( nDof, nDof );
+
+  double currentTime = 0.0;
+  double dt          = 1.0;
+  double pNewDT      = 1.0;
+
+  element->computeYourself( u.data(), dQ.data(), P.data(), K.data(), &currentTime, dt, pNewDT );
+
+  // Check stiffness matrix symmetry
+  double toleranceSymmetry = 1e-12;
+  bool   isSymmetric       = K.isApprox( K.transpose(), toleranceSymmetry );
+  throwExceptionOnFailure( isSymmetric, "NaturallyStabilizedC3D8R stiffness matrix is not symmetric." );
+  throwExceptionOnFailure( K.norm() > 0.0, "Stiffness matrix norm should be greater than zero." );
+}
+
 int main()
 {
   auto tests = std::vector< std::function< void() > >{ testInstantiationAndBasicProperties,
                                                        testStiffnessMatrixCalculationPlaneStress,
-                                                       testInitializeYourselfAndShapeFunctions };
+                                                       testInitializeYourselfAndShapeFunctions,
+                                                       testNaturallyStabilizedC3D8R };
 
   executeTestsAndCollectExceptions( tests );
 

@@ -1,6 +1,8 @@
 #include "Marmot/GeneralGradientEnhancedDisplacementFiniteElement.h"
+#include "Marmot/MarmotElementProperty.h"
 #include "Marmot/MarmotFiniteElement.h"
 #include "Marmot/MarmotTesting.h"
+#include "Marmot/NaturallyStabilizedGeneralGradientEnhancedDisplacementFiniteElement.h"
 
 using namespace Marmot;
 using namespace Marmot::Elements;
@@ -228,6 +230,63 @@ void testCoordinatesAtQuadraturePoints()
   }
 }
 
+void testNaturallyStabilizedGradientEnhancedC3D8R()
+{
+  // Element Type: NaturallyStabilizedGradientEnhancedC3D8R< 1 > (3D, 8 nodes, 1 nonlocal variable, 8 nonlocal nodes)
+  constexpr int nNonlocalVars = 1;
+  const int     elId          = 1;
+  using ElemType              = NaturallyStabilizedGradientEnhancedC3D8R< nNonlocalVars >;
+
+  auto element = std::make_unique< ElemType >( elId );
+
+  // Unit cube coordinates [0,1]x[0,1]x[0,1]
+  const std::vector< double > nodeCoordsVec = { 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0,
+                                                0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0 };
+  element->assignNodeCoordinates( nodeCoordsVec.data() );
+
+  // Material properties for AT2PhaseField: E, nu, Gc, l, density
+  const static std::vector< double > matProps = { 20000.0, 0.25, 2.7, 0.01, 1.0 };
+  const std::string                  matName  = "AT2PHASEFIELD";
+  MarmotMaterialSection              materialSection( matName, matProps.data(), matProps.size() );
+
+  const static std::vector< double > elPropsVec = { 1.0 };
+  ElementProperties                  elProps( elPropsVec.data(), elPropsVec.size() );
+
+  element->assignProperty( elProps );
+  element->assignProperty( materialSection );
+
+  const int nStateVarsTotal = element->getNumberOfRequiredStateVars();
+  throwExceptionOnFailure( nStateVarsTotal >= 36,
+                           "NaturallyStabilizedGradientEnhancedC3D8R should have at least 36 state vars." );
+
+  std::vector< double > stateVars( nStateVarsTotal, 0.0 );
+  element->assignStateVars( stateVars.data(), nStateVarsTotal );
+
+  element->initializeYourself();
+
+  // Basic checks
+  throwExceptionOnFailure( element->getNumberOfQuadraturePoints() == 1, "GC3D8R-2S must have 1 quadrature point." );
+  throwExceptionOnFailure( element->getNDofPerElement() == 32, "GC3D8R-2S must have 32 DOFs." );
+  throwExceptionOnFailure( element->getElementShape() == "hexa8", "GC3D8R-2S must be hexa8 shape." );
+
+  // Test computeYourselfExplicit
+  const int       nDof   = element->getNDofPerElement();
+  Eigen::VectorXd QTotal = Eigen::VectorXd::Zero( nDof );
+  Eigen::VectorXd dQ     = Eigen::VectorXd::Zero( nDof );
+  for ( int i = 0; i < nDof; ++i ) {
+    dQ( i ) = 0.005 * ( i + 1 );
+  }
+  Eigen::VectorXd Pe = Eigen::VectorXd::Zero( nDof );
+
+  double time[2] = { 0.0, 0.0 };
+  double dT      = 1.0;
+  double pNewDT  = 1.0;
+
+  element->computeYourselfExplicit( QTotal.data(), dQ.data(), Pe.data(), time, dT, pNewDT );
+
+  throwExceptionOnFailure( Pe.norm() > 0.0, "Residual force norm should be greater than zero." );
+}
+
 int main()
 {
   auto tests = std::vector< std::function< void() > >{
@@ -239,6 +298,7 @@ int main()
     testNodeFieldsOneNonlocalVar,
     testCoordinatesAtCenter,
     testCoordinatesAtQuadraturePoints,
+    testNaturallyStabilizedGradientEnhancedC3D8R,
   };
 
   executeTestsAndCollectExceptions( tests );

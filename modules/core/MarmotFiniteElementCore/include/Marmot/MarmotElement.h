@@ -135,15 +135,14 @@ public:
    * @param[out] K Stiffness matrix.
    * @param[in] time Current time.
    * @param[in] dT Time step size.
-   * @param[out] pNewdT Suggested new time step size.
+   * @param[in] dT Time step size.
    */
   virtual void computeYourself( const double* QTotal,
                                 const double* dQ,
                                 double*       Pint,
                                 double*       K,
                                 const double* time,
-                                double        dT,
-                                double&       pNewdT ) = 0;
+                                double        dT ) = 0;
 
   /**
    * @brief Perform element computations for explicit time integration.
@@ -152,7 +151,6 @@ public:
    * @param[out] Pint Internal force vector.
    * @param[in] time Current time.
    * @param[in] dT Time step size.
-   * @param[out] pNewdT Suggested new time step size.
    *
    * @note Default implementation throws an exception.
    */
@@ -160,8 +158,7 @@ public:
                                         const double* dQ,
                                         double*       Pint,
                                         const double* time,
-                                        double        dT,
-                                        double&       pNewdT )
+                                        double        dT )
   {
     throw std::invalid_argument( MakeString() << __PRETTY_FUNCTION__ << " not yet implemented" );
   };

@@ -117,15 +117,8 @@ public:
    * @param[out] Ke      Stiffness matrix in the ambient space.
    * @param[in]  time    Current time.
    * @param[in]  dT      Time step size.
-   * @param[out] pNewdT  Suggested new time step size.
    */
-  void computeYourself( const double* QTotal,
-                        const double* dQ,
-                        double*       Pe,
-                        double*       Ke,
-                        const double* time,
-                        double        dT,
-                        double&       pNewdT );
+  void computeYourself( const double* QTotal, const double* dQ, double* Pe, double* Ke, const double* time, double dT );
 
   /// @copydoc MarmotElement::setInitialConditions
   void setInitialConditions( StateTypes state, const double* values );

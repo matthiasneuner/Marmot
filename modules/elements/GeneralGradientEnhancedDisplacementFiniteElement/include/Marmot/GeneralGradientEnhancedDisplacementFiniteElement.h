@@ -346,8 +346,7 @@ namespace Marmot::Elements {
                           double*       Pe,
                           double*       Ke,
                           const double* time,
-                          double        dT,
-                          double&       pNewdT );
+                          double        dT );
 
     /**
      * @brief Compute internal force without tangents.
@@ -368,12 +367,7 @@ namespace Marmot::Elements {
      * @param dT Time increment.
      * @param pNewdT Suggested scaling of dT by the material; if reduced (<1), the routine returns early.
      */
-    void computeYourselfExplicit( const double* QTotal,
-                                  const double* dQ,
-                                  double*       Pe,
-                                  const double* time,
-                                  double        dT,
-                                  double&       pNewdT );
+    void computeYourselfExplicit( const double* QTotal, const double* dQ, double* Pe, const double* time, double dT );
     /**
      * @brief Compute consistent mass matrix using material density.
      * @details \f$\mathbf{M}_e = \sum_{qp} \rho\, \mathbf{N}^\mathsf{T}\mathbf{N}\, J_0 w\f$.
@@ -588,13 +582,7 @@ namespace Marmot::Elements {
 
   template < int nDim, int nNodes, int nNonlocalVariables, int nNonLocalNodes >
   void GeneralGradientEnhancedDisplacementFiniteElement< nDim, nNodes, nNonlocalVariables, nNonLocalNodes >::
-    computeYourself( const double* QTotal_,
-                     const double* dQ_,
-                     double*       Pe_,
-                     double*       Ke_,
-                     const double* time,
-                     double        dT,
-                     double&       pNewDT )
+    computeYourself( const double* QTotal_, const double* dQ_, double* Pe_, double* Ke_, const double* time, double dT )
   {
 
     Map< const RhsSized > QTotal( QTotal_ );
@@ -650,47 +638,80 @@ namespace Marmot::Elements {
       response  res;
       tangents  tan;
       increment inc;
-      try {
-        if constexpr ( nDim == 2 ) {
-          Vector6d dE6             = ContinuumMechanics::VoigtNotation::planeVoigtToVoigt( dE );
+      if constexpr ( nDim == 2 ) {
+        Vector6d dE6             = ContinuumMechanics::VoigtNotation::planeVoigtToVoigt( dE );
+        res.stress               = qp.managedStateVars->stress;
+        res.elasticEnergyDensity = qp.managedStateVars->elasticStrainEnergy / qp.J0xW;
+        res.dissipation          = qp.managedStateVars->dissipation / qp.J0xW;
+        res.stateVars            = qp.managedStateVars->materialStateVars.data();
+        inc                      = { dE6, K, dK, time[1], dT };
+        CSized C                 = CSized::Zero();
+        Voigt  S                 = Voigt::Zero();
+
+        if ( sectionType == SectionType::PlaneStress ) {
+          qp.material->computePlaneStress( res, tan, inc );
+          S = ContinuumMechanics::VoigtNotation::voigtToPlaneVoigt( res.stress );
+          C = ContinuumMechanics::PlaneStress::getPlaneStressTangent( tan.dStressddStrain );
+        }
+        else if ( sectionType == SectionType::PlaneStrain ) {
+          qp.material->computeStress( res, tan, inc );
+          S = ContinuumMechanics::VoigtNotation::voigtToPlaneVoigt( res.stress );
+          C = ContinuumMechanics::PlaneStrain::getPlaneStrainTangent( tan.dStressddStrain );
+        }
+        else {
+          throw std::invalid_argument( "Invalid section type for 2D element, expected PlaneStress or PlaneStrain" );
+        }
+
+        fU += B.transpose() * S * qp.J0xW;
+        kUU += B.transpose() * C * B * qp.J0xW;
+
+        for ( int n = 0; n < nNonlocalVariables; n++ ) {
+          Eigen::Index idx = n * nNonLocalNodes;
+          fK.segment( idx, nNonLocalNodes ) += ( N_K.transpose() * K( n ) +
+                                                 res.c( n ) * dNdX_K.transpose() * dNdX_K *
+                                                   qK.segment( idx, nNonLocalNodes ) -
+                                                 N_K.transpose() * res.KLocal( n ) ) *
+                                               qp.J0xW;
+          const auto dSdK         = ContinuumMechanics::VoigtNotation::voigtToPlaneVoigt( tan.dStressddK.col( n ) );
+          const auto dK_Local_dDE = ContinuumMechanics::VoigtNotation::voigtToPlaneVoigt(
+            tan.dKLocalddStrain.row( n ).transpose() );
+
+          kUK.block( 0, idx, sizeDoFU, nNonLocalNodes ) += B.transpose() * dSdK * N_K * qp.J0xW;
+          kKU.block( idx, 0, nNonLocalNodes, sizeDoFU ) += N_K.transpose() * -dK_Local_dDE.transpose() * B * qp.J0xW;
+          kKK.block( idx, idx, nNonLocalNodes, nNonLocalNodes ) += ( N_K.transpose() * N_K +
+                                                                     res.c( n ) * dNdX_K.transpose() * dNdX_K +
+                                                                     tan.dcddK( n ) * dNdX_K.transpose() * dNdX_K *
+                                                                       qK.segment( idx, nNonLocalNodes ) * N_K -
+                                                                     N_K.transpose() * tan.dKLocalddK( n, n ) * N_K ) *
+                                                                   qp.J0xW;
+        }
+      }
+
+      else if ( nDim == 3 ) {
+        if ( sectionType == Solid ) {
+
           res.stress               = qp.managedStateVars->stress;
           res.elasticEnergyDensity = qp.managedStateVars->elasticStrainEnergy / qp.J0xW;
           res.dissipation          = qp.managedStateVars->dissipation / qp.J0xW;
           res.stateVars            = qp.managedStateVars->materialStateVars.data();
-          inc                      = { dE6, K, dK, time[1], dT };
-          CSized C                 = CSized::Zero();
-          Voigt  S                 = Voigt::Zero();
+          inc                      = { dE, K, dK, time[1], dT };
+          qp.material->computeStress( res, tan, inc );
 
-          if ( sectionType == SectionType::PlaneStress ) {
-            qp.material->computePlaneStress( res, tan, inc );
-            S = ContinuumMechanics::VoigtNotation::voigtToPlaneVoigt( res.stress );
-            C = ContinuumMechanics::PlaneStress::getPlaneStressTangent( tan.dStressddStrain );
-          }
-          else if ( sectionType == SectionType::PlaneStrain ) {
-            qp.material->computeStress( res, tan, inc );
-            S = ContinuumMechanics::VoigtNotation::voigtToPlaneVoigt( res.stress );
-            C = ContinuumMechanics::PlaneStrain::getPlaneStrainTangent( tan.dStressddStrain );
-          }
-          else {
-            throw std::invalid_argument( "Invalid section type for 2D element, expected PlaneStress or PlaneStrain" );
-          }
-
-          fU -= B.transpose() * S * qp.J0xW;
-          kUU += B.transpose() * C * B * qp.J0xW;
+          fU += B.transpose() * res.stress * qp.J0xW;
+          kUU += B.transpose() * tan.dStressddStrain * B * qp.J0xW;
 
           for ( int n = 0; n < nNonlocalVariables; n++ ) {
             Eigen::Index idx = n * nNonLocalNodes;
-            fK.segment( idx, nNonLocalNodes ) -= ( N_K.transpose() * K( n ) +
+            fK.segment( idx, nNonLocalNodes ) += ( N_K.transpose() * K( n ) +
                                                    res.c( n ) * dNdX_K.transpose() * dNdX_K *
                                                      qK.segment( idx, nNonLocalNodes ) -
                                                    N_K.transpose() * res.KLocal( n ) ) *
                                                  qp.J0xW;
-            const auto dSdK         = ContinuumMechanics::VoigtNotation::voigtToPlaneVoigt( tan.dStressddK.col( n ) );
-            const auto dK_Local_dDE = ContinuumMechanics::VoigtNotation::voigtToPlaneVoigt(
-              tan.dKLocalddStrain.row( n ).transpose() );
 
-            kUK.block( 0, idx, sizeDoFU, nNonLocalNodes ) += B.transpose() * dSdK * N_K * qp.J0xW;
-            kKU.block( idx, 0, nNonLocalNodes, sizeDoFU ) += N_K.transpose() * -dK_Local_dDE.transpose() * B * qp.J0xW;
+            kUK.block( 0, idx, sizeDoFU, nNonLocalNodes ) += B.transpose() * tan.dStressddK.col( n ) * N_K * qp.J0xW;
+            kKU.block( idx, 0, nNonLocalNodes, sizeDoFU ) += N_K.transpose() * -tan.dKLocalddStrain.row( n ) * B *
+                                                             qp.J0xW;
+
             kKK.block( idx, idx, nNonLocalNodes, nNonLocalNodes ) += ( N_K.transpose() * N_K +
                                                                        res.c( n ) * dNdX_K.transpose() * dNdX_K +
                                                                        tan.dcddK( n ) * dNdX_K.transpose() * dNdX_K *
@@ -700,48 +721,8 @@ namespace Marmot::Elements {
                                                                      qp.J0xW;
           }
         }
-
-        else if ( nDim == 3 ) {
-          if ( sectionType == Solid ) {
-
-            res.stress               = qp.managedStateVars->stress;
-            res.elasticEnergyDensity = qp.managedStateVars->elasticStrainEnergy / qp.J0xW;
-            res.dissipation          = qp.managedStateVars->dissipation / qp.J0xW;
-            res.stateVars            = qp.managedStateVars->materialStateVars.data();
-            inc                      = { dE, K, dK, time[1], dT };
-            qp.material->computeStress( res, tan, inc );
-
-            fU -= B.transpose() * res.stress * qp.J0xW;
-            kUU += B.transpose() * tan.dStressddStrain * B * qp.J0xW;
-
-            for ( int n = 0; n < nNonlocalVariables; n++ ) {
-              Eigen::Index idx = n * nNonLocalNodes;
-              fK.segment( idx, nNonLocalNodes ) -= ( N_K.transpose() * K( n ) +
-                                                     res.c( n ) * dNdX_K.transpose() * dNdX_K *
-                                                       qK.segment( idx, nNonLocalNodes ) -
-                                                     N_K.transpose() * res.KLocal( n ) ) *
-                                                   qp.J0xW;
-
-              kUK.block( 0, idx, sizeDoFU, nNonLocalNodes ) += B.transpose() * tan.dStressddK.col( n ) * N_K * qp.J0xW;
-              kKU.block( idx, 0, nNonLocalNodes, sizeDoFU ) += N_K.transpose() * -tan.dKLocalddStrain.row( n ) * B *
-                                                               qp.J0xW;
-
-              kKK.block( idx, idx, nNonLocalNodes, nNonLocalNodes ) += ( N_K.transpose() * N_K +
-                                                                         res.c( n ) * dNdX_K.transpose() * dNdX_K +
-                                                                         tan.dcddK( n ) * dNdX_K.transpose() * dNdX_K *
-                                                                           qK.segment( idx, nNonLocalNodes ) * N_K -
-                                                                         N_K.transpose() * tan.dKLocalddK( n, n ) *
-                                                                           N_K ) *
-                                                                       qp.J0xW;
-            }
-          }
-          else
-            throw std::invalid_argument( "Invalid section type for 3D element! Must be Solid" );
-        }
-      }
-      catch ( StressUpdateFailed& e ) {
-        pNewDT = 0.25;
-        return;
+        else
+          throw std::invalid_argument( "Invalid section type for 3D element! Must be Solid" );
       }
       qp.managedStateVars->stress              = res.stress;
       qp.managedStateVars->elasticStrainEnergy = res.elasticEnergyDensity * qp.J0xW;
@@ -753,12 +734,7 @@ namespace Marmot::Elements {
 
   template < int nDim, int nNodes, int nNonlocalVariables, int nNonLocalNodes >
   void GeneralGradientEnhancedDisplacementFiniteElement< nDim, nNodes, nNonlocalVariables, nNonLocalNodes >::
-    computeYourselfExplicit( const double* QTotal_,
-                             const double* dQ_,
-                             double*       Pe_,
-                             const double* time,
-                             double        dT,
-                             double&       pNewDT )
+    computeYourselfExplicit( const double* QTotal_, const double* dQ_, double* Pe_, const double* time, double dT )
   {
 
     Map< const RhsSized > QTotal( QTotal_ );
@@ -803,68 +779,62 @@ namespace Marmot::Elements {
 
       response  res;
       increment inc;
-      try {
-        if constexpr ( nDim == 2 ) {
-          Vector6d dE6             = ContinuumMechanics::VoigtNotation::planeVoigtToVoigt( dE );
+      if constexpr ( nDim == 2 ) {
+        Vector6d dE6             = ContinuumMechanics::VoigtNotation::planeVoigtToVoigt( dE );
+        res.stress               = qp.managedStateVars->stress;
+        res.elasticEnergyDensity = qp.managedStateVars->elasticStrainEnergy / qp.J0xW;
+        res.dissipation          = qp.managedStateVars->dissipation / qp.J0xW;
+        res.stateVars            = qp.managedStateVars->materialStateVars.data();
+        inc                      = { dE6, K, dK, time[1], dT };
+        Voigt S                  = Voigt::Zero();
+
+        if ( sectionType == SectionType::PlaneStress ) {
+          qp.material->computePlaneStressExplicit( res, inc );
+          S = ContinuumMechanics::VoigtNotation::voigtToPlaneVoigt( res.stress );
+        }
+        else if ( sectionType == SectionType::PlaneStrain ) {
+          qp.material->computeStressExplicit( res, inc );
+          S = ContinuumMechanics::VoigtNotation::voigtToPlaneVoigt( res.stress );
+        }
+        else {
+          throw std::invalid_argument( "Invalid section type for 2D element, expected PlaneStress or PlaneStrain" );
+        }
+
+        fU += B.transpose() * S * qp.J0xW;
+
+        for ( int n = 0; n < nNonlocalVariables; n++ ) {
+          Eigen::Index idx = n * nNonLocalNodes;
+          fK.segment( idx, nNonLocalNodes ) += ( N_K.transpose() * K( n ) +
+                                                 res.c( n ) * dNdX_K.transpose() * dNdX_K *
+                                                   qK.segment( idx, nNonLocalNodes ) -
+                                                 N_K.transpose() * res.KLocal( n ) ) *
+                                               qp.J0xW;
+        }
+      }
+
+      else if ( nDim == 3 ) {
+        if ( sectionType == Solid ) {
+
           res.stress               = qp.managedStateVars->stress;
           res.elasticEnergyDensity = qp.managedStateVars->elasticStrainEnergy / qp.J0xW;
           res.dissipation          = qp.managedStateVars->dissipation / qp.J0xW;
           res.stateVars            = qp.managedStateVars->materialStateVars.data();
-          inc                      = { dE6, K, dK, time[1], dT };
-          Voigt S                  = Voigt::Zero();
+          inc                      = { dE, K, dK, time[1], dT };
+          qp.material->computeStressExplicit( res, inc );
 
-          if ( sectionType == SectionType::PlaneStress ) {
-            qp.material->computePlaneStressExplicit( res, inc );
-            S = ContinuumMechanics::VoigtNotation::voigtToPlaneVoigt( res.stress );
-          }
-          else if ( sectionType == SectionType::PlaneStrain ) {
-            qp.material->computeStressExplicit( res, inc );
-            S = ContinuumMechanics::VoigtNotation::voigtToPlaneVoigt( res.stress );
-          }
-          else {
-            throw std::invalid_argument( "Invalid section type for 2D element, expected PlaneStress or PlaneStrain" );
-          }
-
-          fU -= B.transpose() * S * qp.J0xW;
+          fU += B.transpose() * res.stress * qp.J0xW;
 
           for ( int n = 0; n < nNonlocalVariables; n++ ) {
             Eigen::Index idx = n * nNonLocalNodes;
-            fK.segment( idx, nNonLocalNodes ) -= ( N_K.transpose() * K( n ) +
+            fK.segment( idx, nNonLocalNodes ) += ( N_K.transpose() * K( n ) +
                                                    res.c( n ) * dNdX_K.transpose() * dNdX_K *
                                                      qK.segment( idx, nNonLocalNodes ) -
                                                    N_K.transpose() * res.KLocal( n ) ) *
                                                  qp.J0xW;
           }
         }
-
-        else if ( nDim == 3 ) {
-          if ( sectionType == Solid ) {
-
-            res.stress               = qp.managedStateVars->stress;
-            res.elasticEnergyDensity = qp.managedStateVars->elasticStrainEnergy / qp.J0xW;
-            res.dissipation          = qp.managedStateVars->dissipation / qp.J0xW;
-            res.stateVars            = qp.managedStateVars->materialStateVars.data();
-            inc                      = { dE, K, dK, time[1], dT };
-            qp.material->computeStressExplicit( res, inc );
-
-            fU -= B.transpose() * res.stress * qp.J0xW;
-
-            for ( int n = 0; n < nNonlocalVariables; n++ ) {
-              Eigen::Index idx = n * nNonLocalNodes;
-              fK.segment( idx, nNonLocalNodes ) -= ( N_K.transpose() * K( n ) +
-                                                     res.c( n ) * dNdX_K.transpose() * dNdX_K *
-                                                       qK.segment( idx, nNonLocalNodes ) -
-                                                     N_K.transpose() * res.KLocal( n ) ) *
-                                                   qp.J0xW;
-            }
-          }
-          else
-            throw std::invalid_argument( "Invalid section type for 3D element! Must be Solid" );
-        }
-      }
-      catch ( StressUpdateFailed& e ) {
-        pNewDT = 0.25;
-        return;
+        else
+          throw std::invalid_argument( "Invalid section type for 3D element! Must be Solid" );
       }
       qp.managedStateVars->stress = res.stress;
       qp.managedStateVars->strain += make3DVoigt< ParentGeometryElement::voigtSize >( dE );

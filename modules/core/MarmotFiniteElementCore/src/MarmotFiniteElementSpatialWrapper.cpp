@@ -149,8 +149,7 @@ void MarmotElementSpatialWrapper::computeYourself( const double* Q,
                                                    double*       Pe_,
                                                    double*       Ke_,
                                                    const double* time,
-                                                   double        dT,
-                                                   double&       pNewDT )
+                                                   double        dT )
 {
   Map< const VectorXd > Q_Unprojected( Q, unprojectedSize );
   Map< const VectorXd > dQ_Unprojected( dQ, unprojectedSize );
@@ -161,16 +160,8 @@ void MarmotElementSpatialWrapper::computeYourself( const double* Q,
   VectorXd Pe_Projected = VectorXd::Zero( projectedSize );
   MatrixXd Ke_Projected = MatrixXd::Zero( projectedSize, projectedSize );
 
-  childElement->computeYourself( Q_Projected.data(),
-                                 dQ_Projected.data(),
-                                 Pe_Projected.data(),
-                                 Ke_Projected.data(),
-                                 time,
-                                 dT,
-                                 pNewDT );
-
-  if ( pNewDT < 1.0 )
-    return;
+  childElement
+    ->computeYourself( Q_Projected.data(), dQ_Projected.data(), Pe_Projected.data(), Ke_Projected.data(), time, dT );
 
   Map< VectorXd > Pe_Unprojected( Pe_, unprojectedSize );
   Map< MatrixXd > Ke_Unprojected( Ke_, unprojectedSize, unprojectedSize );

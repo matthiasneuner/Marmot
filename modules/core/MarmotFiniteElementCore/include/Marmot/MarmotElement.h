@@ -112,6 +112,19 @@ public:
   virtual void assignProperty( const MarmotMaterialSection& property );
 
   /**
+   * @brief Assign a single property of the element by name.
+   * @param[in] propertyName Name of the property.
+   * @param[in] properties Pointer to the array of property values.
+   */
+  virtual void assignProperty( const std::string& propertyName, const double* properties );
+
+  /**
+   * @brief Get the names of all the valid properties of the element.
+   * @return Vector of strings containing the property names.
+   */
+  virtual std::vector< std::string > getPropertyNames() const;
+
+  /**
    * @brief Assign nodal coordinates to element.
    * @param[in] coordinates Pointer to array of nodal coordinates.
    */

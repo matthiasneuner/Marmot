@@ -2,7 +2,6 @@
 #include "Marmot/MarmotElementFactory.h"
 #include "Marmot/MarmotFiniteElement.h"
 #include "Marmot/MarmotFiniteElementSpatialWrapper.h"
-#include "Marmot/NaturallyStabilizedDisplacementFiniteElement.h"
 
 namespace Marmot::Elements::Registration {
 
@@ -64,14 +63,6 @@ namespace Marmot::Elements::Registration {
                      makeFactoryFunction< DisplacementFiniteElement< 3, 20 >,
                                           ReducedIntegration,
                                           DisplacementFiniteElement< 3, 20 >::SectionType::Solid >() );
-
-  const static bool
-    C3D8R_2S_isRegistered = MarmotLibrary::MarmotElementFactory::registerElement( "C3D8R-2S",
-                                                                                  [](
-                                                                                    int elementID ) -> MarmotElement* {
-                                                                                    return new NaturallyStabilizedC3D8R(
-                                                                                      elementID );
-                                                                                  } );
 
   MarmotElement* generateT2D2( int elementID )
   {

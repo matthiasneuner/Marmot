@@ -222,6 +222,8 @@ namespace Marmot::Elements {
     double _integrationWeightOrder2;
 
   public:
+    using Base::assignProperty;
+
     /**
      * @brief Constructor for the NaturallyStabilizedGradientEnhancedC3D8R element.
      *
@@ -310,6 +312,27 @@ namespace Marmot::Elements {
      * @return The total number of state variables.
      */
     int getNumberOfRequiredStateVars() override { return 36 + Base::getNumberOfRequiredStateVars(); }
+
+    /**
+     * @brief Assign a single property of the element by name.
+     * @param[in] propertyName Name of the property.
+     * @param[in] properties Pointer to the array of property values.
+     */
+    void assignProperty( const std::string& propertyName, const double* properties ) override
+    {
+      if ( propertyName == "bulk viscosity" ) {
+        _bulkViscosity = properties[0];
+      }
+      else {
+        MarmotElement::assignProperty( propertyName, properties );
+      }
+    }
+
+    /**
+     * @brief Get the names of all the valid properties of the element.
+     * @return Vector of strings containing the property names.
+     */
+    std::vector< std::string > getPropertyNames() const override { return { "bulk viscosity" }; }
 
     /**
      * @brief Computes the explicit internal forces and updates element state.

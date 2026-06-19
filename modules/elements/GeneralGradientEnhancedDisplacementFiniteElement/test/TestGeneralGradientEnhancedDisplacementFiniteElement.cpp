@@ -239,6 +239,15 @@ void testNaturallyStabilizedGradientEnhancedC3D8R()
 
   auto element = std::make_unique< ElemType >( elId );
 
+  // Verify getPropertyNames()
+  const auto propNames = element->getPropertyNames();
+  throwExceptionOnFailure( propNames.size() == 1, "NaturallyStabilizedGradientEnhancedC3D8R should have 1 property." );
+  throwExceptionOnFailure( propNames[0] == "bulk viscosity", "First property name incorrect." );
+
+  // Verify assignProperty()
+  const double bvVal = 0.12;
+  element->assignProperty( "bulk viscosity", &bvVal );
+
   // Unit cube coordinates [0,1]x[0,1]x[0,1]
   const std::vector< double > nodeCoordsVec = { 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0,
                                                 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0 };

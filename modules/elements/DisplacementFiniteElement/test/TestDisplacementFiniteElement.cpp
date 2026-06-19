@@ -233,6 +233,22 @@ void testNaturallyStabilizedC3D8R()
   const int elId    = 1;
   auto      element = std::make_unique< NaturallyStabilizedC3D8R >( elId );
 
+  // Verify getPropertyNames()
+  const auto propNames = element->getPropertyNames();
+  throwExceptionOnFailure( propNames.size() == 3, "NaturallyStabilizedC3D8R should have 3 properties." );
+  throwExceptionOnFailure( propNames[0] == "bulk viscosity", "First property name incorrect." );
+  throwExceptionOnFailure( propNames[1] == "scale down factor", "Second property name incorrect." );
+  throwExceptionOnFailure( propNames[2] == "use deviatoric tangent for stabilization",
+                           "Third property name incorrect." );
+
+  // Verify assignProperty()
+  const double bvVal  = 0.12;
+  const double sdfVal = 0.08;
+  const double udtVal = 1.0; // true
+  element->assignProperty( "bulk viscosity", &bvVal );
+  element->assignProperty( "scale down factor", &sdfVal );
+  element->assignProperty( "use deviatoric tangent for stabilization", &udtVal );
+
   // 8 nodes in 3D -> 24 node coordinates
   // Unit cube coordinates [0,1]x[0,1]x[0,1]
   const std::vector< double > nodeCoordsVec = { 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0,

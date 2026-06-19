@@ -397,6 +397,7 @@ namespace Marmot::Elements {
 
   public:
     using Base = DisplacementFiniteElement< 3, 8 >;
+    using Base::assignProperty;
 
     /**
      * @brief Construct a new Naturally Stabilized C3D8R element.
@@ -477,6 +478,36 @@ namespace Marmot::Elements {
     {
       // 36 state variables for stabilization history + base class state variables
       return 36 + Base::getNumberOfRequiredStateVars();
+    }
+
+    /**
+     * @brief Assign a single property of the element by name.
+     * @param[in] propertyName Name of the property.
+     * @param[in] properties Pointer to the array of property values.
+     */
+    void assignProperty( const std::string& propertyName, const double* properties ) override
+    {
+      if ( propertyName == "bulk viscosity" ) {
+        _bulkViscosity = properties[0];
+      }
+      else if ( propertyName == "scale down factor" ) {
+        _scaleDownFactor = properties[0];
+      }
+      else if ( propertyName == "use deviatoric tangent for stabilization" ) {
+        _useDeviatoricTangentForStabilization = static_cast< bool >( properties[0] );
+      }
+      else {
+        MarmotElement::assignProperty( propertyName, properties );
+      }
+    }
+
+    /**
+     * @brief Get the names of all the valid properties of the element.
+     * @return Vector of strings containing the property names.
+     */
+    std::vector< std::string > getPropertyNames() const override
+    {
+      return { "bulk viscosity", "scale down factor", "use deviatoric tangent for stabilization" };
     }
 
     /**

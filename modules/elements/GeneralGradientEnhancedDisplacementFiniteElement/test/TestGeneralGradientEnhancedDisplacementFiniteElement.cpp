@@ -320,6 +320,15 @@ void testNaturallyStabilizedGradientEnhancedC3D8R()
   throwExceptionOnFailure( Pe_modified.norm() > 0.0, "Modified residual force norm should be greater than zero." );
   throwExceptionOnFailure( ( Pe_default - Pe_modified ).norm() > 0.0,
                            "Residual force vector should change when disabling nonlocal stabilization and coupling." );
+
+  // Test computeYourself (implicit)
+  Eigen::VectorXd Pe_implicit = Eigen::VectorXd::Zero( nDof );
+  Eigen::MatrixXd Ke_implicit = Eigen::MatrixXd::Zero( nDof, nDof );
+
+  elementDefault->computeYourself( QTotal.data(), dQ.data(), Pe_implicit.data(), Ke_implicit.data(), time, dT, pNewDT );
+
+  throwExceptionOnFailure( Pe_implicit.norm() > 0.0, "Implicit residual force norm should be greater than zero." );
+  throwExceptionOnFailure( Ke_implicit.norm() > 0.0, "Implicit tangent stiffness norm should be greater than zero." );
 }
 
 int main()

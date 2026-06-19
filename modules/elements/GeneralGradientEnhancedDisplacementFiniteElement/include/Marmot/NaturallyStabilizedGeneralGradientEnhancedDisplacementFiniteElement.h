@@ -558,6 +558,174 @@ namespace Marmot::Elements {
         Pe_K_mat -= ( F_stab1_K + F_stab2_K );
       }
     }
+
+    /**
+     * @brief Computes the internal force vector and consistent tangent stiffness matrix for implicit analysis.
+     * @details This method computes the internal force and tangent stiffness using a single integration point.
+     * It then adds the stabilization forces and the corresponding consistent tangent contributions to
+     * control hourglass modes.
+     *
+     * @param[in] QTotal_ Total displacement vector.
+     * @param[in] dQ_ Incremental displacement vector.
+     * @param[out] Pe_ Element internal force vector (residual).
+     * @param[out] Ke_ Element tangent stiffness matrix.
+     * @param[in] time Current time data.
+     * @param[in] dT Time increment.
+     * @param[out] pNewDT Suggested new time step scaling factor.
+     */
+    void computeYourself( const double* QTotal_,
+                          const double* dQ_,
+                          double*       Pe_,
+                          double*       Ke_,
+                          const double* time,
+                          double        dT,
+                          double&       pNewDT ) override
+    {
+      using namespace Marmot;
+      using namespace ContinuumMechanics::VoigtNotation;
+
+      using response  = typename MarmotMaterialGeneralGradientEnhancedHypoElastic< nNonlocalVariables >::response;
+      using tangents  = typename MarmotMaterialGeneralGradientEnhancedHypoElastic< nNonlocalVariables >::tangents;
+      using increment = typename MarmotMaterialGeneralGradientEnhancedHypoElastic< nNonlocalVariables >::increment;
+
+      Map< const typename Base::RhsSized > QTotal( QTotal_ );
+      Map< const typename Base::RhsSized > dQ( dQ_ );
+      Map< typename Base::KeSizedMatrix >  Ke( Ke_ );
+      Map< typename Base::RhsSized >       Pe( Pe_ );
+
+      using Matrix3x8d = Eigen::Matrix< double, 3, 8 >;
+      Map< const Matrix3x8d > dU( dQ.data() );
+      Map< Matrix3x8d >       Pe_U_mat( Pe.data() );
+
+      using Matrix8Nd = Eigen::Matrix< double, 8, nNonlocalVariables >;
+      Map< const Matrix8Nd > dqK_mat( dQ.data() + Base::sizeDoFU );
+      Map< const Matrix8Nd > qK_mat( QTotal.data() + Base::sizeDoFU );
+      Map< Matrix8Nd >       Pe_K_mat( Pe.data() + Base::sizeDoFU );
+
+      Ref< Eigen::Matrix< double, Base::sizeDoFU, Base::sizeDoFU > > kUU(
+        Ke.topLeftCorner( Base::sizeDoFU, Base::sizeDoFU ) );
+      Ref< Eigen::Matrix< double, Base::sizeDoFU, Base::sizeDoFK > > kUK(
+        Ke.topRightCorner( Base::sizeDoFU, Base::sizeDoFK ) );
+      Ref< Eigen::Matrix< double, Base::sizeDoFK, Base::sizeDoFU > > kKU(
+        Ke.bottomLeftCorner( Base::sizeDoFK, Base::sizeDoFU ) );
+      Ref< Eigen::Matrix< double, Base::sizeDoFK, Base::sizeDoFK > > kKK(
+        Ke.bottomRightCorner( Base::sizeDoFK, Base::sizeDoFK ) );
+
+      auto& qp = this->qps[0];
+
+      const typename Base::BSized&      B      = qp.B;
+      const typename Base::NSizedK&     N_K    = qp.N_K;
+      const typename Base::dNdXiSizedK& dNdX_K = qp.dNdX_K;
+
+      typename Base::Voigt dE = B * dQ.head( Base::sizeDoFU );
+
+      Vector< double, nNonlocalVariables > K;
+      Vector< double, nNonlocalVariables > dK;
+
+      for ( size_t n = 0; n < nNonlocalVariables; n++ ) {
+        K( n )  = N_K * qK_mat.col( n );
+        dK( n ) = N_K * dqK_mat.col( n );
+      }
+
+      response  res;
+      tangents  tan;
+      increment inc;
+
+      try {
+        res.stress               = qp.managedStateVars->stress;
+        res.elasticEnergyDensity = qp.managedStateVars->elasticStrainEnergy / qp.J0xW;
+        res.dissipation          = qp.managedStateVars->dissipation / qp.J0xW;
+        res.stateVars            = qp.managedStateVars->materialStateVars.data();
+
+        inc = { dE, K, dK, time[1], dT };
+
+        qp.material->computeStress( res, tan, inc );
+
+        Pe.head( Base::sizeDoFU ) -= B.transpose() * res.stress * qp.J0xW;
+        kUU += B.transpose() * tan.dStressddStrain * B * qp.J0xW;
+
+        for ( int n = 0; n < nNonlocalVariables; n++ ) {
+          Eigen::Index idx = n * 8; // nNonLocalNodes is 8
+
+          Pe_K_mat.col( n ) -= ( N_K.transpose() * K( n ) + res.c( n ) * dNdX_K.transpose() * dNdX_K * qK_mat.col( n ) -
+                                 N_K.transpose() * res.KLocal( n ) ) *
+                               qp.J0xW;
+
+          kUK.block( 0, idx, Base::sizeDoFU, 8 ) += B.transpose() * tan.dStressddK.col( n ) * N_K * qp.J0xW;
+          kKU.block( idx, 0, 8, Base::sizeDoFU ) += N_K.transpose() * -tan.dKLocalddStrain.row( n ) * B * qp.J0xW;
+
+          kKK.block( idx, idx, 8, 8 ) += ( N_K.transpose() * N_K + res.c( n ) * dNdX_K.transpose() * dNdX_K +
+                                           tan.dcddK( n ) * dNdX_K.transpose() * dNdX_K * qK_mat.col( n ) * N_K -
+                                           N_K.transpose() * tan.dKLocalddK( n, n ) * N_K ) *
+                                         qp.J0xW;
+        }
+      }
+      catch ( Marmot::StressUpdateFailed& e ) {
+        pNewDT = 0.25;
+        return;
+      }
+
+      qp.managedStateVars->stress              = res.stress;
+      qp.managedStateVars->elasticStrainEnergy = res.elasticEnergyDensity * qp.J0xW;
+      qp.managedStateVars->dissipation         = res.dissipation * qp.J0xW;
+      qp.managedStateVars->totalStrainEnergy   = ( res.elasticEnergyDensity + res.dissipation ) * qp.J0xW;
+      qp.managedStateVars->strain += make3DVoigt< Base::ParentGeometryElement::voigtSize >( dE );
+
+      // =====================================================================
+      // --- STABILIZATION ---
+      // =====================================================================
+
+      using Matrix6x3d        = Eigen::Matrix< double, 6, 3 >;
+      const auto ddStrain_dXi = Hex8NaturalStabilization::compute_dStrain_dXi( dU, _d2N_dXdXi );
+      const auto ddK_dxi = Hex8NaturalGradientEnhancedStabilization::compute_ddK_dxi< nNonlocalVariables >( dqK_mat );
+
+      Matrix6x3d dDeltaStress_dXi = tan.dStressddStrain * ddStrain_dXi;
+      if ( _coupledStabilization ) {
+        dDeltaStress_dXi += tan.dStressddK * ddK_dxi;
+      }
+      this->dStress_dXi += dDeltaStress_dXi;
+
+      const auto F_stab1_U = Hex8NaturalStabilization::computeFirstOrderStabilizationTerm( dU,
+                                                                                           _d2N_dXdXi,
+                                                                                           _integrationWeightOrder1,
+                                                                                           dStress_dXi );
+      const auto F_stab1_K = Hex8NaturalGradientEnhancedStabilization::computeFirstOrderNonlocalStabilizationTerm<
+        nNonlocalVariables >( _integrationWeightOrder1, _d2N_dXdXi, qK_mat, res.c );
+
+      const auto [dStrain_dXi1_dXi2,
+                  dStrain_dXi1_dXi3,
+                  dStrain_dXi2_dXi3] = Hex8NaturalStabilization::compute_dStrain_dXi1_dXi2_dXi3( dU, _dXi_dx );
+
+      const auto [dd2K_12, dd2K_13, dd2K_23] = Hex8NaturalGradientEnhancedStabilization::compute_dd2K_dxi<
+        nNonlocalVariables >( dqK_mat );
+
+      this->dStress_dXi1_dXi2 += tan.dStressddStrain * dStrain_dXi1_dXi2;
+      this->dStress_dXi1_dXi3 += tan.dStressddStrain * dStrain_dXi1_dXi3;
+      this->dStress_dXi2_dXi3 += tan.dStressddStrain * dStrain_dXi2_dXi3;
+      if ( _coupledStabilization ) {
+        this->dStress_dXi1_dXi2 += tan.dStressddK * dd2K_12;
+        this->dStress_dXi1_dXi3 += tan.dStressddK * dd2K_13;
+        this->dStress_dXi2_dXi3 += tan.dStressddK * dd2K_23;
+      }
+
+      const auto F_stab2_U = Hex8NaturalStabilization::computeSecondOrderStabilizationTerm( _integrationWeightOrder2,
+                                                                                            dStress_dXi1_dXi2,
+                                                                                            dStress_dXi1_dXi3,
+                                                                                            dStress_dXi2_dXi3,
+                                                                                            _dXi_dx );
+
+      const auto F_stab2_K = Hex8NaturalGradientEnhancedStabilization::computeSecondOrderNonlocalStabilizationTerm<
+        nNonlocalVariables >( _integrationWeightOrder2, qK_mat, res.c, _dXi_dx );
+
+      Pe_U_mat -= ( F_stab1_U + F_stab2_U );
+      if ( _stabilizeNonlocalDamage ) {
+        Pe_K_mat -= ( F_stab1_K + F_stab2_K );
+      }
+
+      // Add tangent contributions for stabilization
+      kUU += Hex8NaturalStabilization::compute_dF_stab1_dQ( _d2N_dXdXi, _integrationWeightOrder1, tan.dStressddStrain );
+      kUU += Hex8NaturalStabilization::compute_dF_stab2_dQ( _integrationWeightOrder2, tan.dStressddStrain, _dXi_dx );
+    }
   };
 
 } // namespace Marmot::Elements

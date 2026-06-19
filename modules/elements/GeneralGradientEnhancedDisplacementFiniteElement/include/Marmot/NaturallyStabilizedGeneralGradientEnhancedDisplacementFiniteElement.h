@@ -174,6 +174,10 @@ namespace Marmot::Elements {
      * This is derived from the element's volume and is used to appropriately scale stabilization terms.
      */
     double _charElemLength{ 0.0 };
+    /// @brief Flag to determine whether to couple mechanical and nonlocal variables in stabilization (default = true).
+    bool _coupledStabilization{ true };
+    /// @brief Flag to determine whether to stabilize the nonlocal damage field (default = true).
+    bool _stabilizeNonlocalDamage{ true };
 
     // ---------------------------------------------------------------------
     // STABILIZATION HISTORY VARIABLES MAPS
@@ -323,6 +327,12 @@ namespace Marmot::Elements {
       if ( propertyName == "bulk viscosity" ) {
         _bulkViscosity = properties[0];
       }
+      else if ( propertyName == "coupled mode for stabilization" || propertyName == "coupled stabilization" ) {
+        _coupledStabilization = static_cast< bool >( properties[0] );
+      }
+      else if ( propertyName == "stabilize nonlocal damage field" || propertyName == "stabilize nonlocal damage" ) {
+        _stabilizeNonlocalDamage = static_cast< bool >( properties[0] );
+      }
       else {
         MarmotElement::assignProperty( propertyName, properties );
       }
@@ -332,7 +342,10 @@ namespace Marmot::Elements {
      * @brief Get the names of all the valid properties of the element.
      * @return Vector of strings containing the property names.
      */
-    std::vector< std::string > getPropertyNames() const override { return { "bulk viscosity" }; }
+    std::vector< std::string > getPropertyNames() const override
+    {
+      return { "bulk viscosity", "coupled mode for stabilization", "stabilize nonlocal damage field" };
+    }
 
     /**
      * @brief Computes the explicit internal forces and updates element state.
@@ -480,7 +493,10 @@ namespace Marmot::Elements {
 
       // [C] Project through coupled tangents and accumulate history
       // Compute the change in stress due to both mechanical and nonlocal increments.
-      Matrix6x3d dDeltaStress_dXi = tan.dStressddStrain * ddStrain_dXi + tan.dStressddK * ddK_dxi;
+      Matrix6x3d dDeltaStress_dXi = tan.dStressddStrain * ddStrain_dXi;
+      if ( _coupledStabilization ) {
+        dDeltaStress_dXi += tan.dStressddK * ddK_dxi;
+      }
       // Accumulate this change into the history variable dStress_dXi.
       this->dStress_dXi += dDeltaStress_dXi;
 
@@ -512,9 +528,14 @@ namespace Marmot::Elements {
       // [C] Project through coupled tangents and update history
       // Compute the change in stress due to mixed second-order increments (mechanical and nonlocal).
       // These updates are added to the mapped history variables.
-      this->dStress_dXi1_dXi2 += tan.dStressddStrain * dStrain_dXi1_dXi2 + tan.dStressddK * dd2K_12;
-      this->dStress_dXi1_dXi3 += tan.dStressddStrain * dStrain_dXi1_dXi3 + tan.dStressddK * dd2K_13;
-      this->dStress_dXi2_dXi3 += tan.dStressddStrain * dStrain_dXi2_dXi3 + tan.dStressddK * dd2K_23;
+      this->dStress_dXi1_dXi2 += tan.dStressddStrain * dStrain_dXi1_dXi2;
+      this->dStress_dXi1_dXi3 += tan.dStressddStrain * dStrain_dXi1_dXi3;
+      this->dStress_dXi2_dXi3 += tan.dStressddStrain * dStrain_dXi2_dXi3;
+      if ( _coupledStabilization ) {
+        this->dStress_dXi1_dXi2 += tan.dStressddK * dd2K_12;
+        this->dStress_dXi1_dXi3 += tan.dStressddK * dd2K_13;
+        this->dStress_dXi2_dXi3 += tan.dStressddK * dd2K_23;
+      }
 
       // Compute the second-order stabilization force contribution from mechanical DOFs (dU).
       const auto F_stab2_U = Hex8NaturalStabilization::computeSecondOrderStabilizationTerm( _integrationWeightOrder2,
@@ -533,7 +554,9 @@ namespace Marmot::Elements {
 
       // Subtract the stabilization forces from the mechanical and nonlocal internal force vectors.
       Pe_U_mat -= ( F_stab1_U + F_stab2_U );
-      Pe_K_mat -= ( F_stab1_K + F_stab2_K );
+      if ( _stabilizeNonlocalDamage ) {
+        Pe_K_mat -= ( F_stab1_K + F_stab2_K );
+      }
     }
   };
 

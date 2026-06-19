@@ -241,12 +241,19 @@ void testNaturallyStabilizedGradientEnhancedC3D8R()
 
   // Verify getPropertyNames()
   const auto propNames = element->getPropertyNames();
-  throwExceptionOnFailure( propNames.size() == 1, "NaturallyStabilizedGradientEnhancedC3D8R should have 1 property." );
+  throwExceptionOnFailure( propNames.size() == 3,
+                           "NaturallyStabilizedGradientEnhancedC3D8R should have 3 properties." );
   throwExceptionOnFailure( propNames[0] == "bulk viscosity", "First property name incorrect." );
+  throwExceptionOnFailure( propNames[1] == "coupled mode for stabilization", "Second property name incorrect." );
+  throwExceptionOnFailure( propNames[2] == "stabilize nonlocal damage field", "Third property name incorrect." );
 
   // Verify assignProperty()
-  const double bvVal = 0.12;
+  const double bvVal                = 0.12;
+  const double coupledVal           = 0.0; // false
+  const double stabilizeNonlocalVal = 0.0; // false
   element->assignProperty( "bulk viscosity", &bvVal );
+  element->assignProperty( "coupled mode for stabilization", &coupledVal );
+  element->assignProperty( "stabilize nonlocal damage field", &stabilizeNonlocalVal );
 
   // Unit cube coordinates [0,1]x[0,1]x[0,1]
   const std::vector< double > nodeCoordsVec = { 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0,
@@ -278,22 +285,41 @@ void testNaturallyStabilizedGradientEnhancedC3D8R()
   throwExceptionOnFailure( element->getNDofPerElement() == 32, "GC3D8R-2S must have 32 DOFs." );
   throwExceptionOnFailure( element->getElementShape() == "hexa8", "GC3D8R-2S must be hexa8 shape." );
 
-  // Test computeYourselfExplicit
+  // Test computeYourselfExplicit with default (coupled, stabilized nonlocal damage)
+  // Let's create an element with defaults (only bulk viscosity is modified)
+  auto elementDefault = std::make_unique< ElemType >( elId + 10 );
+  elementDefault->assignProperty( "bulk viscosity", &bvVal );
+  elementDefault->assignNodeCoordinates( nodeCoordsVec.data() );
+  elementDefault->assignProperty( elProps );
+  elementDefault->assignProperty( materialSection );
+
+  std::vector< double > stateVarsDefault( nStateVarsTotal, 0.0 );
+  elementDefault->assignStateVars( stateVarsDefault.data(), nStateVarsTotal );
+  elementDefault->initializeYourself();
+
   const int       nDof   = element->getNDofPerElement();
   Eigen::VectorXd QTotal = Eigen::VectorXd::Zero( nDof );
   Eigen::VectorXd dQ     = Eigen::VectorXd::Zero( nDof );
   for ( int i = 0; i < nDof; ++i ) {
     dQ( i ) = 0.005 * ( i + 1 );
   }
-  Eigen::VectorXd Pe = Eigen::VectorXd::Zero( nDof );
+  Eigen::VectorXd Pe_default = Eigen::VectorXd::Zero( nDof );
 
   double time[2] = { 0.0, 0.0 };
   double dT      = 1.0;
   double pNewDT  = 1.0;
 
-  element->computeYourselfExplicit( QTotal.data(), dQ.data(), Pe.data(), time, dT, pNewDT );
+  elementDefault->computeYourselfExplicit( QTotal.data(), dQ.data(), Pe_default.data(), time, dT, pNewDT );
 
-  throwExceptionOnFailure( Pe.norm() > 0.0, "Residual force norm should be greater than zero." );
+  throwExceptionOnFailure( Pe_default.norm() > 0.0, "Default residual force norm should be greater than zero." );
+
+  // Test computeYourselfExplicit with modified settings (uncoupled, disabled nonlocal stabilization)
+  Eigen::VectorXd Pe_modified = Eigen::VectorXd::Zero( nDof );
+  element->computeYourselfExplicit( QTotal.data(), dQ.data(), Pe_modified.data(), time, dT, pNewDT );
+
+  throwExceptionOnFailure( Pe_modified.norm() > 0.0, "Modified residual force norm should be greater than zero." );
+  throwExceptionOnFailure( ( Pe_default - Pe_modified ).norm() > 0.0,
+                           "Residual force vector should change when disabling nonlocal stabilization and coupling." );
 }
 
 int main()

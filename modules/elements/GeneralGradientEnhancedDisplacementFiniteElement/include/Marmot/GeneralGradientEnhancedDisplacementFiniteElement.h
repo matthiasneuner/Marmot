@@ -285,7 +285,7 @@ namespace Marmot::Elements {
                                  const int                           elementFace,
                                  const double*                       load,
                                  const double*                       QTotal,
-                                 const double*                       time,
+                                 double                              time,
                                  double                              dT );
 
     /**
@@ -298,7 +298,7 @@ namespace Marmot::Elements {
 
                            const double* load,
                            const double* QTotal,
-                           const double* time,
+                           double        time,
                            double        dT );
 
     /**
@@ -318,18 +318,14 @@ namespace Marmot::Elements {
      * \f]
      * The stiffness submatrices are evaluated using the following expressions:
      * \f[
-     * \mathbf{K}_{uu} = \sum_{qp} \mathbf{B}^\mathsf{T} \frac{\partial \mathbf{\sig}}{\partial \mathbf{\eps}}
-     * \mathbf{B}\, J_0\, w_{qp},\quad
-     * \mathbf{K}_{u\knl} = \sum_{qp} \mathbf{B}^\mathsf{T} \frac{\partial \mathbf{\sig}}{\partial \knl} \mathbf{\Nk}\,
-     * J_0\, w_{qp},\quad
-     * \mathbf{K}_{\knl u} = -\sum_{qp} \mathbf{\Nk}^\mathsf{T} \frac{\partial \kl}{\partial \mathbf{\eps}} \mathbf{B}\,
-     * J_0\, w_{qp},
+     * \mathbf{K}_e = \begin{bmatrix} \mathbf{K}_{uu} & \mathbf{K}_{uk} \\ \mathbf{K}_{ku} & \mathbf{K}_{kk}
+     * \end{bmatrix},\qquad
+     * \mathbf{\fuint} = \sum_{qp} \mathbf{B}^\mathsf{T}\, \sig\, J_0\, w_{qp}\, .
      * \f]
      * \f[
-     * \mathbf{K}_{\knl\knl} = \sum_{qp} \left( \mathbf{\Nk}^\mathsf{T}\, \mathbf{\Nk} + c \, \partial_\mathbf{x}
-     * \mathbf{\Nk}^\mathsf{T} \,  \partial_\mathbf{x} \mathbf{\Nk} + \frac{\partial c}{\partial \knl} \,
-     * \partial_\mathbf{x} \mathbf{\Nk}^\mathsf{T} \, \partial_\mathbf{x}   \mathbf{\Nk}\, \qk \, \mathbf{\Nk} -
-     * \mathbf{\Nk}^\mathsf{T}\, \frac{\partial \kl}{\partial \knl} \right) J_0\, w_{qp}\, .
+     * \mathbf{\fk} = \sum_{qp} \left (\mathbf{\Nk}^\mathsf{T}\, \knl\, + c\, \partial_\mathbf{x}
+     * \mathbf{\Nk}^\mathsf{T}\,\partial_\mathbf{x} \mathbf{\Nk}\, \mathbf{\qk} - \mathbf{\Nk}^\mathsf{T}\, \kl \right )
+     * J_0\, w_{qp} \, .
      * \f]
      * If pNewdT<1, the routine returns early to signal time step reduction.
      * @param QTotal Total displacement vector in field-wise format: \f$\mathbf{q} = [\mathbf{\qu},
@@ -339,14 +335,8 @@ namespace Marmot::Elements {
      * @param Ke Tangent stiffness matrix (accumulated).
      * @param time Time data forwarded to materials.
      * @param dT Time increment.
-     * @param pNewdT Suggested scaling of dT by the material; if reduced (<1), the routine returns early.
      */
-    void computeYourself( const double* QTotal,
-                          const double* dQ,
-                          double*       Pe,
-                          double*       Ke,
-                          const double* time,
-                          double        dT );
+    void computeKernels( const double* QTotal, const double* dQ, double* Pe, double* Ke, double time, double dT );
 
     /**
      * @brief Compute internal force without tangents.
@@ -362,12 +352,10 @@ namespace Marmot::Elements {
      * \mathbf{\qk}]^\mathsf{T}\f$.
      * @param dQ Incremental displacement.
      * @param Pe Internal force vector (accumulated).
-     * @param Ke Tangent stiffness matrix (accumulated).
      * @param time Time data forwarded to materials.
      * @param dT Time increment.
-     * @param pNewdT Suggested scaling of dT by the material; if reduced (<1), the routine returns early.
      */
-    void computeYourselfExplicit( const double* QTotal, const double* dQ, double* Pe, const double* time, double dT );
+    void computeKernelsExplicit( const double* QTotal, const double* dQ, double* Pe, double time, double dT );
     /**
      * @brief Compute consistent mass matrix using material density.
      * @details \f$\mathbf{M}_e = \sum_{qp} \rho\, \mathbf{N}^\mathsf{T}\mathbf{N}\, J_0 w\f$.
@@ -582,7 +570,7 @@ namespace Marmot::Elements {
 
   template < int nDim, int nNodes, int nNonlocalVariables, int nNonLocalNodes >
   void GeneralGradientEnhancedDisplacementFiniteElement< nDim, nNodes, nNonlocalVariables, nNonLocalNodes >::
-    computeYourself( const double* QTotal_, const double* dQ_, double* Pe_, double* Ke_, const double* time, double dT )
+    computeKernels( const double* QTotal_, const double* dQ_, double* Pe_, double* Ke_, double time, double dT )
   {
 
     Map< const RhsSized > QTotal( QTotal_ );
@@ -644,7 +632,7 @@ namespace Marmot::Elements {
         res.elasticEnergyDensity = qp.managedStateVars->elasticStrainEnergy / qp.J0xW;
         res.dissipation          = qp.managedStateVars->dissipation / qp.J0xW;
         res.stateVars            = qp.managedStateVars->materialStateVars.data();
-        inc                      = { dE6, K, dK, time[1], dT };
+        inc                      = { dE6, K, dK, time, dT };
         CSized C                 = CSized::Zero();
         Voigt  S                 = Voigt::Zero();
 
@@ -694,7 +682,7 @@ namespace Marmot::Elements {
           res.elasticEnergyDensity = qp.managedStateVars->elasticStrainEnergy / qp.J0xW;
           res.dissipation          = qp.managedStateVars->dissipation / qp.J0xW;
           res.stateVars            = qp.managedStateVars->materialStateVars.data();
-          inc                      = { dE, K, dK, time[1], dT };
+          inc                      = { dE, K, dK, time, dT };
           qp.material->computeStress( res, tan, inc );
 
           fU += B.transpose() * res.stress * qp.J0xW;
@@ -734,7 +722,7 @@ namespace Marmot::Elements {
 
   template < int nDim, int nNodes, int nNonlocalVariables, int nNonLocalNodes >
   void GeneralGradientEnhancedDisplacementFiniteElement< nDim, nNodes, nNonlocalVariables, nNonLocalNodes >::
-    computeYourselfExplicit( const double* QTotal_, const double* dQ_, double* Pe_, const double* time, double dT )
+    computeKernelsExplicit( const double* QTotal_, const double* dQ_, double* Pe_, double time, double dT )
   {
 
     Map< const RhsSized > QTotal( QTotal_ );
@@ -785,7 +773,7 @@ namespace Marmot::Elements {
         res.elasticEnergyDensity = qp.managedStateVars->elasticStrainEnergy / qp.J0xW;
         res.dissipation          = qp.managedStateVars->dissipation / qp.J0xW;
         res.stateVars            = qp.managedStateVars->materialStateVars.data();
-        inc                      = { dE6, K, dK, time[1], dT };
+        inc                      = { dE6, K, dK, time, dT };
         Voigt S                  = Voigt::Zero();
 
         if ( sectionType == SectionType::PlaneStress ) {
@@ -819,7 +807,7 @@ namespace Marmot::Elements {
           res.elasticEnergyDensity = qp.managedStateVars->elasticStrainEnergy / qp.J0xW;
           res.dissipation          = qp.managedStateVars->dissipation / qp.J0xW;
           res.stateVars            = qp.managedStateVars->materialStateVars.data();
-          inc                      = { dE, K, dK, time[1], dT };
+          inc                      = { dE, K, dK, time, dT };
           qp.material->computeStressExplicit( res, inc );
 
           fU += B.transpose() * res.stress * qp.J0xW;
@@ -961,7 +949,7 @@ namespace Marmot::Elements {
                             const int                           elementFace,
                             const double*                       load,
                             const double*                       QTotal,
-                            const double*                       time,
+                            double                              time,
                             double                              dT )
   {
 
@@ -1039,7 +1027,7 @@ namespace Marmot::Elements {
                       const double* load,
 
                       const double* QTotal,
-                      const double* time,
+                      double        time,
                       double        dT )
   {
     Map< RhsSized >                              P( P_ );

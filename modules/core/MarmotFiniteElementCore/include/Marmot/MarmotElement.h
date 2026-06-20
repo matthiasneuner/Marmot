@@ -135,14 +135,13 @@ public:
    * @param[out] K Stiffness matrix.
    * @param[in] time Current time.
    * @param[in] dT Time step size.
-   * @param[in] dT Time step size.
    */
-  virtual void computeYourself( const double* QTotal,
-                                const double* dQ,
-                                double*       Pint,
-                                double*       K,
-                                const double* time,
-                                double        dT ) = 0;
+  virtual void computeKernels( const double* QTotal,
+                               const double* dQ,
+                               double*       Pint,
+                               double*       K,
+                               double        time,
+                               double        dT ) = 0;
 
   /**
    * @brief Perform element computations for explicit time integration.
@@ -154,11 +153,7 @@ public:
    *
    * @note Default implementation throws an exception.
    */
-  virtual void computeYourselfExplicit( const double* QTotal,
-                                        const double* dQ,
-                                        double*       Pint,
-                                        const double* time,
-                                        double        dT )
+  virtual void computeKernelsExplicit( const double* QTotal, const double* dQ, double* Pint, double time, double dT )
   {
     throw std::invalid_argument( MakeString() << __PRETTY_FUNCTION__ << " not yet implemented" );
   };
@@ -179,7 +174,7 @@ public:
                                        int                  elementFace,
                                        const double*        load,
                                        const double*        QTotal,
-                                       const double*        time,
+                                       double               time,
                                        double               dT ) = 0;
 
   /**
@@ -195,7 +190,7 @@ public:
                                  double*       K,
                                  const double* load,
                                  const double* QTotal,
-                                 const double* time,
+                                 double        time,
                                  double        dT ) = 0;
 
   /**

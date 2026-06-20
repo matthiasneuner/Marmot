@@ -251,7 +251,7 @@ namespace Marmot::Elements {
                                  const int                           elementFace,
                                  const double*                       load,
                                  const double*                       QTotal,
-                                 const double*                       time,
+                                 double                              time,
                                  double                              dT );
 
     /**
@@ -259,12 +259,7 @@ namespace Marmot::Elements {
      * @details Integrates \f$\mathbf{P}_e^{(b)} = \int_{\Omega_e} \mathbf{N}^\mathsf{T} \mathbf{f}\,
      * \mathrm{d}\Omega\f$.
      */
-    void computeBodyForce( double*       P,
-                           double*       K,
-                           const double* load,
-                           const double* QTotal,
-                           const double* time,
-                           double        dT );
+    void computeBodyForce( double* P, double* K, const double* load, const double* QTotal, double time, double dT );
 
     /**
      * @brief Compute internal force and consistent tangent stiffness.
@@ -282,12 +277,7 @@ namespace Marmot::Elements {
      * @param time Time data forwarded to materials.
      * @param dT Time increment.
      */
-    void computeYourself( const double* QTotal,
-                          const double* dQ,
-                          double*       Pe,
-                          double*       Ke,
-                          const double* time,
-                          double        dT );
+    void computeKernels( const double* QTotal, const double* dQ, double* Pe, double* Ke, double time, double dT );
 
     /**
      * @brief Compute internal force only (no tangent stiffness).
@@ -302,7 +292,7 @@ namespace Marmot::Elements {
      * @param time Time data forwarded to materials.
      * @param dT Time increment.
      */
-    void computeYourselfExplicit( const double* QTotal, const double* dQ, double* Pe, const double* time, double dT );
+    void computeKernelsExplicit( const double* QTotal, const double* dQ, double* Pe, double time, double dT );
     /**
      * @brief Compute consistent mass matrix using material density.
      * @details \f$\mathbf{M}_e = \sum_{qp} \rho\, \mathbf{N}^\mathsf{T}\mathbf{N}\, J_0 w\f$.
@@ -488,12 +478,12 @@ namespace Marmot::Elements {
   }
 
   template < int nDim, int nNodes >
-  void DisplacementFiniteElement< nDim, nNodes >::computeYourself( const double* QTotal_,
-                                                                   const double* dQ_,
-                                                                   double*       Pe_,
-                                                                   double*       Ke_,
-                                                                   const double* time,
-                                                                   double        dT )
+  void DisplacementFiniteElement< nDim, nNodes >::computeKernels( const double* QTotal_,
+                                                                  const double* dQ_,
+                                                                  double*       Pe_,
+                                                                  double*       Ke_,
+                                                                  double        time,
+                                                                  double        dT )
   {
     using namespace Marmot;
     using namespace ContinuumMechanics::VoigtNotation;
@@ -526,7 +516,7 @@ namespace Marmot::Elements {
         state.stateVars            = qp.managedStateVars->materialStateVars.data();
 
         // set time info
-        timeInfo.time = time[1];
+        timeInfo.time = time;
         timeInfo.dT   = dT;
         qp.material->computeUniaxialStress( state, C[0], dE[0], timeInfo );
         Eigen::VectorXd stress1D( 1 );
@@ -550,7 +540,7 @@ namespace Marmot::Elements {
           state.stateVars            = qp.managedStateVars->materialStateVars.data();
 
           // set time info
-          timeInfo.time = time[1];
+          timeInfo.time = time;
           timeInfo.dT   = dT;
           qp.material->computePlaneStress( state, C, dE, timeInfo );
           qp.managedStateVars->stress = make3DVoigt< ParentGeometryElement::voigtSize >( state.stress );
@@ -575,7 +565,7 @@ namespace Marmot::Elements {
           state.stateVars            = qp.managedStateVars->materialStateVars.data();
 
           // set time info
-          timeInfo.time = time[1];
+          timeInfo.time = time;
           timeInfo.dT   = dT;
           qp.material->computeStress( state, C66, dE6, timeInfo );
           qp.managedStateVars->stress = state.stress;
@@ -600,7 +590,7 @@ namespace Marmot::Elements {
           state.stateVars            = qp.managedStateVars->materialStateVars.data();
 
           // set time info
-          timeInfo.time = time[1];
+          timeInfo.time = time;
           timeInfo.dT   = dT;
           qp.material->computeStress( state, C, dE, timeInfo );
           qp.managedStateVars->stress = state.stress;
@@ -621,11 +611,11 @@ namespace Marmot::Elements {
   }
 
   template < int nDim, int nNodes >
-  void DisplacementFiniteElement< nDim, nNodes >::computeYourselfExplicit( const double* QTotal_,
-                                                                           const double* dQ_,
-                                                                           double*       Pe_,
-                                                                           const double* time,
-                                                                           double        dT )
+  void DisplacementFiniteElement< nDim, nNodes >::computeKernelsExplicit( const double* QTotal_,
+                                                                          const double* dQ_,
+                                                                          double*       Pe_,
+                                                                          double        time,
+                                                                          double        dT )
   {
     using namespace Marmot;
     using namespace ContinuumMechanics::VoigtNotation;
@@ -664,7 +654,7 @@ namespace Marmot::Elements {
           state.stateVars            = qp.managedStateVars->materialStateVars.data();
 
           // set time info
-          timeInfo.time = time[1];
+          timeInfo.time = time;
           timeInfo.dT   = dT;
           Matrix3d C    = Matrix3d::Zero();
           qp.material->computePlaneStress( state, C, dE, timeInfo );
@@ -689,7 +679,7 @@ namespace Marmot::Elements {
           state.stateVars            = qp.managedStateVars->materialStateVars.data();
 
           // set time info
-          timeInfo.time = time[1];
+          timeInfo.time = time;
           timeInfo.dT   = dT;
           qp.material->computeStressExplicit( state, dE6, timeInfo );
           qp.managedStateVars->stress = state.stress;
@@ -713,7 +703,7 @@ namespace Marmot::Elements {
           state.stateVars            = qp.managedStateVars->materialStateVars.data();
 
           // set time info
-          timeInfo.time = time[1];
+          timeInfo.time = time;
           timeInfo.dT   = dT;
           qp.material->computeStressExplicit( state, dE, timeInfo );
           qp.managedStateVars->stress = state.stress;
@@ -773,7 +763,7 @@ namespace Marmot::Elements {
                                                                           const int     elementFace,
                                                                           const double* load,
                                                                           const double* QTotal,
-                                                                          const double* time,
+                                                                          double        time,
                                                                           double        dT )
   {
     Map< RhsSized > fU( P );
@@ -818,7 +808,7 @@ namespace Marmot::Elements {
                                                                     double*       K,
                                                                     const double* load,
                                                                     const double* QTotal,
-                                                                    const double* time,
+                                                                    double        time,
                                                                     double        dT )
   {
     Map< RhsSized >                              Pe( P_ );

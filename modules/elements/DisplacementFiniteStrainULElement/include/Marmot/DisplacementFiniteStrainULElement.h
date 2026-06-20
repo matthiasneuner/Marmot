@@ -307,7 +307,7 @@ namespace Marmot::Elements {
                                  const int                           elementFace,
                                  const double*                       load,
                                  const double*                       QTotal,
-                                 const double*                       time,
+                                 double                              time,
                                  double                              dT );
 
     /** @brief Compute the contributions of body forces to the element residual vector and stiffness matrix
@@ -324,20 +324,13 @@ namespace Marmot::Elements {
      * @param time[in] Pointer to the time at the beginning of the current time step
      * @param dT[in] Length of the current time step
      */
-    void computeBodyForce( double*       P,
-                           double*       K,
-                           const double* load,
-                           const double* QTotal,
-                           const double* time,
-                           double        dT );
+    void computeBodyForce( double* P, double* K, const double* load, const double* QTotal, double time, double dT );
 
     /** @brief Compute the negative element residual vector (right hand side of global newton) and stiffness matrix
      *
      * For a given displacement \f$\mathbf{q}^{(n+1)}\f$ at the current time step \f$t^{(n+1)} = t^{(n)} + \Delta\,t\f$,
      * compute the internal work contribution for the negative element residual vector (right hand side of global
-     * newton) \f$-\int_{V_0}\,\mathbf{N}_{A,i}\,\tau_{ij}\,dV_0\f$ and the element stiffness matrix
-     * \f$\int_{V_0}\,\mathbf{N}_{A,i}\,\frac{\partial \tau_{ij}}{\partial
-     * F_{kK}}\,\mathbf{N}_{B,K}\,-\,\mathbf{N}_{A,k\,}\mathbf{N}_{B,i}\,\tau_{ij}\,dV_0\f$.
+     * newton) \f$-\int_{V_0}\,\mathbf{N}_A\,f_j\,dV_0\f$.
      *
      * @param QTotal[in] Pointer to the total element displacement vector at the current time step
      * @param dQ[in] Pointer to the increment of the element displacement vector at the current time step
@@ -346,18 +339,13 @@ namespace Marmot::Elements {
      * @param time[in] Pointer to the time at the beginning of the current time step
      * @param dT[in] Length of the current time step
      */
-    void computeYourself( const double* QTotal,
-                          const double* dQ,
-                          double*       Pe,
-                          double*       Ke,
-                          const double* time,
-                          double        dT );
+    void computeKernels( const double* QTotal, const double* dQ, double* Pe, double* Ke, double time, double dT );
 
     /** @brief Compute the negative element residual vector (internal force only, no tangent stiffness)
      *
      * For a given displacement \f$\mathbf{q}^{(n+1)}\f$ at the current time step \f$t^{(n+1)} = t^{(n)} + \Delta\,t\f$,
      * compute the internal work contribution for the negative element residual vector (right hand side of global
-     * newton) \f$-\int_{V_0}\,\mathbf{N}_{A,i}\,\tau_{ij}\,dV_0\f$.
+     * newton) \f$-\int_{V_0}\,\mathbf{N}_A\,f_j\,dV_0\f$.
      *
      * @param QTotal[in] Pointer to the total element displacement vector at the current time step
      * @param dQ[in] Pointer to the increment of the element displacement vector at the current time step
@@ -365,7 +353,7 @@ namespace Marmot::Elements {
      * @param time[in] Pointer to the time at the beginning of the current time step
      * @param dT[in] Length of the current time step
      */
-    void computeYourselfExplicit( const double* QTotal, const double* dQ, double* Pe, const double* time, double dT );
+    void computeKernelsExplicit( const double* QTotal, const double* dQ, double* Pe, double time, double dT );
 
     /**
      * @brief Compute consistent mass matrix using material density.
@@ -547,12 +535,12 @@ namespace Marmot::Elements {
   }
 
   template < int nDim, int nNodes >
-  void DisplacementFiniteStrainULElement< nDim, nNodes >::computeYourself( const double* qTotal,
-                                                                           const double* dQ,
-                                                                           double*       rightHandSide,
-                                                                           double*       stiffnessMatrix,
-                                                                           const double* time,
-                                                                           double        dT )
+  void DisplacementFiniteStrainULElement< nDim, nNodes >::computeKernels( const double* qTotal,
+                                                                          const double* dQ,
+                                                                          double*       rightHandSide,
+                                                                          double*       stiffnessMatrix,
+                                                                          double        time,
+                                                                          double        dT )
   {
     using namespace Fastor;
 
@@ -582,7 +570,7 @@ namespace Marmot::Elements {
 
       const Material::Deformation< nDim > deformation = { F_np };
 
-      const Material::TimeIncrement timeIncrement{ time[1], dT };
+      const Material::TimeIncrement timeIncrement{ time, dT };
 
       Material::ConstitutiveResponse< nDim > response( Tensor< double, nDim, nDim >( qp.managedStateVars->stress.data(),
                                                                                      ColumnMajor ),
@@ -682,11 +670,11 @@ namespace Marmot::Elements {
   }
 
   template < int nDim, int nNodes >
-  void DisplacementFiniteStrainULElement< nDim, nNodes >::computeYourselfExplicit( const double* qTotal,
-                                                                                   const double* dQ,
-                                                                                   double*       rightHandSide,
-                                                                                   const double* time,
-                                                                                   double        dT )
+  void DisplacementFiniteStrainULElement< nDim, nNodes >::computeKernelsExplicit( const double* qTotal,
+                                                                                  const double* dQ,
+                                                                                  double*       rightHandSide,
+                                                                                  double        time,
+                                                                                  double        dT )
   {
     using namespace Fastor;
 
@@ -713,7 +701,7 @@ namespace Marmot::Elements {
 
       const Material::Deformation< nDim > deformation = { F_np };
 
-      const Material::TimeIncrement timeIncrement{ time[1], dT };
+      const Material::TimeIncrement timeIncrement{ time, dT };
 
       Material::ConstitutiveResponse< nDim > response( Tensor< double, nDim, nDim >( qp.managedStateVars->stress.data(),
                                                                                      ColumnMajor ),
@@ -785,7 +773,7 @@ namespace Marmot::Elements {
     const int                           elementFace,
     const double*                       load,
     const double*                       QTotal_,
-    const double*                       time,
+    double                              time,
     double                              dT )
   {
 
@@ -893,7 +881,7 @@ namespace Marmot::Elements {
                                                                             const double* load,
 
                                                                             const double* qTotal,
-                                                                            const double* time,
+                                                                            double        time,
                                                                             double        dT )
   {
     Eigen::Map< RhsSized >                                     r( rightHandSide );
@@ -1034,23 +1022,18 @@ namespace Marmot::Elements {
 
     using DisplacementFiniteStrainULElement< 2, nNodes >::DisplacementFiniteStrainULElement;
 
-    void computeYourself( const double* QTotal,
-                          const double* dQ,
-                          double*       Pe,
-                          double*       Ke,
-                          const double* time,
-                          double        dT );
+    void computeKernels( const double* QTotal, const double* dQ, double* Pe, double* Ke, double time, double dT );
 
-    void computeYourselfExplicit( const double* QTotal, const double* dQ, double* Pe, const double* time, double dT );
+    void computeKernelsExplicit( const double* QTotal, const double* dQ, double* Pe, double time, double dT );
   };
 
   template < int nNodes >
-  void AxiSymmetricDisplacementFiniteStrainULElement< nNodes >::computeYourself( const double* qTotal,
-                                                                                 const double* dQ,
-                                                                                 double*       rightHandSide,
-                                                                                 double*       stiffnessMatrix,
-                                                                                 const double* time,
-                                                                                 double        dT )
+  void AxiSymmetricDisplacementFiniteStrainULElement< nNodes >::computeKernels( const double* qTotal,
+                                                                                const double* dQ,
+                                                                                double*       rightHandSide,
+                                                                                double*       stiffnessMatrix,
+                                                                                double        time,
+                                                                                double        dT )
   {
     constexpr int nDim = 2;
 
@@ -1096,7 +1079,7 @@ namespace Marmot::Elements {
         F_np,
       };
 
-      const Material ::TimeIncrement timeIncrement{ time[0], dT };
+      const Material ::TimeIncrement timeIncrement{ time, dT };
 
       Material::ConstitutiveResponse< nDim > response;
       Material::AlgorithmicModuli< nDim >    tangents;
@@ -1194,11 +1177,11 @@ namespace Marmot::Elements {
   }
 
   template < int nNodes >
-  void AxiSymmetricDisplacementFiniteStrainULElement< nNodes >::computeYourselfExplicit( const double* qTotal,
-                                                                                         const double* dQ,
-                                                                                         double*       rightHandSide,
-                                                                                         const double* time,
-                                                                                         double        dT )
+  void AxiSymmetricDisplacementFiniteStrainULElement< nNodes >::computeKernelsExplicit( const double* qTotal,
+                                                                                        const double* dQ,
+                                                                                        double*       rightHandSide,
+                                                                                        double        time,
+                                                                                        double        dT )
   {
     constexpr int nDim = 2;
 
@@ -1240,7 +1223,7 @@ namespace Marmot::Elements {
         F_np,
       };
 
-      const Material ::TimeIncrement timeIncrement{ time[0], dT };
+      const Material ::TimeIncrement timeIncrement{ time, dT };
 
       Material::ConstitutiveResponse< nDim > response;
 

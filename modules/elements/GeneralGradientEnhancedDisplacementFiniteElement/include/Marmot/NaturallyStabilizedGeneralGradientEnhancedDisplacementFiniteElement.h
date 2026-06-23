@@ -725,6 +725,36 @@ namespace Marmot::Elements {
       // Add tangent contributions for stabilization
       kUU += Hex8NaturalStabilization::compute_dF_stab1_dQ( _d2N_dXdXi, _integrationWeightOrder1, tan.dStressddStrain );
       kUU += Hex8NaturalStabilization::compute_dF_stab2_dQ( _integrationWeightOrder2, tan.dStressddStrain, _dXi_dx );
+      if ( _stabilizeNonlocalDamage ) {
+        for ( int n = 0; n < nNonlocalVariables; n++ ) {
+          Eigen::Index idx = n * 8;
+          // Compute first-order stabilization tangent contribution for kKK
+          Eigen::Matrix< double, 8, 8 > K_stab1_KK = Eigen::Matrix< double, 8, 8 >::Zero();
+          for ( int A = 0; A < 8; ++A ) {
+            for ( int B = 0; B < 8; ++B ) {
+              double sum = 0.0;
+              for ( int alpha = 0; alpha < 3; ++alpha ) {
+                for ( int i = 0; i < 3; ++i ) {
+                  sum += _d2N_dXdXi[A][i][alpha] * _d2N_dXdXi[B][i][alpha];
+                }
+              }
+              K_stab1_KK( A, B ) = _integrationWeightOrder1 * res.c( n ) * sum;
+            }
+          }
+
+          // Compute second-order stabilization tangent contribution for kKK
+          double invJ_sq_sum = 0.0;
+          for ( int i = 0; i < 3; ++i ) {
+            invJ_sq_sum += _dXi_dx( 2, i ) * _dXi_dx( 2, i ) + _dXi_dx( 1, i ) * _dXi_dx( 1, i ) +
+                           _dXi_dx( 0, i ) * _dXi_dx( 0, i );
+          }
+          Eigen::Matrix< double, 8, 8 > K_stab2_KK = ( _integrationWeightOrder2 * res.c( n ) * invJ_sq_sum ) *
+                                                     Hex8NaturalStabilization::_d3N_dXi1_dXi2_dXi3 *
+                                                     Hex8NaturalStabilization::_d3N_dXi1_dXi2_dXi3.transpose();
+
+          kKK.block( idx, idx, 8, 8 ) += K_stab1_KK + K_stab2_KK;
+        }
+      }
     }
   };
 

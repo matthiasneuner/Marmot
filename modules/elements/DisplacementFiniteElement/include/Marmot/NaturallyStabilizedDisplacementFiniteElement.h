@@ -731,9 +731,9 @@ namespace Marmot::Elements {
       Ke += B.transpose() * C * B * qp.J0xW;
       Pe -= B.transpose() * S * qp.J0xW;
 
-      // if (_useDeviatoricTangentForStabilization) {
-      //   C = ( IDev * C ).eval();
-      // }
+      if ( _useDeviatoricTangentForStabilization ) {
+        C = ( IDev * C ).eval();
+      }
 
       Map< const Matrix3x8d > dU( dQ.data() );
 

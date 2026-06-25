@@ -31,7 +31,7 @@
 <para>Represents the deformation state of a material. </para>
     </briefdescription>
     <detaileddescription>
-<para>This struct holds the deformation gradient <formula id="43">$\boldsymbol{F}$</formula> which describes the local deformation of a material. </para>
+<para>This struct holds the deformation gradient <formula id="6">$\boldsymbol{F}$</formula> which describes the local deformation of a material. </para>
     </detaileddescription>
     <location file="/home/runner/work/Marmot/Marmot/modules/core/MarmotFiniteStrainMechanicsCore/include/Marmot/MarmotMaterialFiniteStrainAD.h" line="100" column="3" bodyfile="/home/runner/work/Marmot/Marmot/modules/core/MarmotFiniteStrainMechanicsCore/include/Marmot/MarmotMaterialFiniteStrainAD.h" bodystart="100" bodyend="102"/>
     <listofallmembers>

@@ -20,7 +20,7 @@
           <declname>F</declname>
         </param>
         <briefdescription>
-<para>Computes the right Cauchy-Green tensor <formula id="22">$\boldsymbol{C}$</formula>. </para>
+<para>Computes the right Cauchy-Green tensor <formula id="39">$\boldsymbol{C}$</formula>. </para>
         </briefdescription>
         <detaileddescription>
 <para><parameterlist kind="templateparam"><parameteritem>
@@ -43,8 +43,8 @@
 </parameterlist>
 <simplesect kind="return"><para>The right Cauchy-Green tensor</para>
 </simplesect>
-The right Cauchy-Green deformation tensor is defined as:   <formula id="44">\[  \boldsymbol{C} = \boldsymbol{F}^T \boldsymbol{F}
-\]</formula> or in index notation:   <formula id="45">\[  C_{IJ} = F_{iI} F_{iJ}
+The right Cauchy-Green deformation tensor is defined as:   <formula id="50">\[  \boldsymbol{C} = \boldsymbol{F}^T \boldsymbol{F}
+\]</formula> or in index notation:   <formula id="51">\[  C_{IJ} = F_{iI} F_{iJ}
 \]</formula> </para>
         </detaileddescription>
         <inbodydescription>
@@ -67,7 +67,7 @@ The right Cauchy-Green deformation tensor is defined as:   <formula id="44">\[  
           <declname>F</declname>
         </param>
         <briefdescription>
-<para>Computes the left Cauchy-Green tensor <formula id="46">$\boldsymbol{b}$</formula>. </para>
+<para>Computes the left Cauchy-Green tensor <formula id="52">$\boldsymbol{b}$</formula>. </para>
         </briefdescription>
         <detaileddescription>
 <para><parameterlist kind="templateparam"><parameteritem>
@@ -90,8 +90,8 @@ The right Cauchy-Green deformation tensor is defined as:   <formula id="44">\[  
 </parameterlist>
 <simplesect kind="return"><para>The left Cauchy-Green tensor b</para>
 </simplesect>
-The left Cauchy-Green deformation tensor is defined as:   <formula id="47">\[  \boldsymbol{b} = \boldsymbol{F} \boldsymbol{F}^T
-\]</formula> or in index notation:   <formula id="48">\[  b_{ij} = F_{iI} F_{jI}
+The left Cauchy-Green deformation tensor is defined as:   <formula id="53">\[  \boldsymbol{b} = \boldsymbol{F} \boldsymbol{F}^T
+\]</formula> or in index notation:   <formula id="54">\[  b_{ij} = F_{iI} F_{jI}
 \]</formula> </para>
         </detaileddescription>
         <inbodydescription>

@@ -13,8 +13,8 @@
 <para>Computes the derivative of the mean stress with respect to the stress vector. </para>
         </briefdescription>
         <detaileddescription>
-<para><formula id="187">\[  \frac{\partial \sigma_m}{\partial \boldsymbol{\sigma}}
-\]</formula> <simplesect kind="return"><para>6-component vector representing <formula id="188">$ \tfrac{\partial \sigma_m}{\partial \boldsymbol{\sigma}} $</formula> in Voigt notation. </para>
+<para><formula id="124">\[  \frac{\partial \sigma_m}{\partial \boldsymbol{\sigma}}
+\]</formula> <simplesect kind="return"><para>6-component vector representing <formula id="125">$ \tfrac{\partial \sigma_m}{\partial \boldsymbol{\sigma}} $</formula> in Voigt notation. </para>
 </simplesect>
 </para>
         </detaileddescription>
@@ -42,10 +42,10 @@
           <declname>stress</declname>
         </param>
         <briefdescription>
-<para>Computes the derivative of the Haigh–Westergaard deviatoric radius <formula id="142">$ \rho $</formula> with respect to the stress vector. </para>
+<para>Computes the derivative of the Haigh–Westergaard deviatoric radius <formula id="79">$ \rho $</formula> with respect to the stress vector. </para>
         </briefdescription>
         <detaileddescription>
-<para><formula id="189">\[  \frac{\partial \rho}{\partial \boldsymbol{\sigma}}
+<para><formula id="126">\[  \frac{\partial \rho}{\partial \boldsymbol{\sigma}}
 \]</formula> <parameterlist kind="templateparam"><parameteritem>
 <parameternamelist>
 <parametername>T</parametername>
@@ -60,7 +60,7 @@
 <parametername>rho</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Precomputed Haigh–Westergaard coordinate <formula id="142">$ \rho $</formula>. </para>
+<para>Precomputed Haigh–Westergaard coordinate <formula id="79">$ \rho $</formula>. </para>
 </parameterdescription>
 </parameteritem>
 <parameteritem>
@@ -72,9 +72,9 @@
 </parameterdescription>
 </parameteritem>
 </parameterlist>
-<simplesect kind="return"><para>6-component vector of partial derivatives <formula id="190">$ \tfrac{\partial \rho}{\partial \boldsymbol{\sigma}} $</formula> in Voigt notation. </para>
+<simplesect kind="return"><para>6-component vector of partial derivatives <formula id="127">$ \tfrac{\partial \rho}{\partial \boldsymbol{\sigma}} $</formula> in Voigt notation. </para>
 </simplesect>
-<simplesect kind="note"><para>Returns zero if <formula id="191">$ \rho \leq 10^{-16} $</formula> to avoid division by zero. </para>
+<simplesect kind="note"><para>Returns zero if <formula id="128">$ \rho \leq 10^{-16} $</formula> to avoid division by zero. </para>
 </simplesect>
 </para>
         </detaileddescription>
@@ -104,7 +104,7 @@
         <briefdescription>
         </briefdescription>
         <detaileddescription>
-<para>Computes the derivative <formula id="192">$ \frac{d\, \varepsilon_\rho}{d\, \boldsymbol{\varepsilon}}$</formula> of the haigh westergaard coordinate  <formula id="193">$\strain_\rho $</formula> with respect to the voigt notated strain vector <formula id="161">$ \boldsymbol{\varepsilon} $</formula> </para>
+<para>Computes the derivative <formula id="129">$ \frac{d\, \varepsilon_\rho}{d\, \boldsymbol{\varepsilon}}$</formula> of the haigh westergaard coordinate  <formula id="130">$\strain_\rho $</formula> with respect to the voigt notated strain vector <formula id="98">$ \boldsymbol{\varepsilon} $</formula> </para>
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
@@ -125,7 +125,7 @@
           <declname>stress</declname>
         </param>
         <briefdescription>
-<para>Computes the derivative of the lode angle <formula id="143">$ \theta $</formula> with respect to the stress vector. </para>
+<para>Computes the derivative of the lode angle <formula id="80">$ \theta $</formula> with respect to the stress vector. </para>
         </briefdescription>
         <detaileddescription>
 <para><parameterlist kind="param"><parameteritem>
@@ -133,7 +133,7 @@
 <parametername>theta</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Lode angle <formula id="143">$ \theta $</formula>. </para>
+<para>Lode angle <formula id="80">$ \theta $</formula>. </para>
 </parameterdescription>
 </parameteritem>
 <parameteritem>
@@ -145,9 +145,9 @@
 </parameterdescription>
 </parameteritem>
 </parameterlist>
-<simplesect kind="return"><para>6-component vector of partial derivatives <formula id="194">$ \tfrac{\partial \theta}{\partial \boldsymbol{\sigma}} $</formula> in Voigt notation. </para>
+<simplesect kind="return"><para>6-component vector of partial derivatives <formula id="131">$ \tfrac{\partial \theta}{\partial \boldsymbol{\sigma}} $</formula> in Voigt notation. </para>
 </simplesect>
-<simplesect kind="note"><para>Returns zero if <formula id="195">$ \theta \leq 10^{-15} $</formula> or if <formula id="196">$ \theta \geq \frac{\pi}{3} - 10^{-15} $</formula>. </para>
+<simplesect kind="note"><para>Returns zero if <formula id="132">$ \theta \leq 10^{-15} $</formula> or if <formula id="133">$ \theta \geq \frac{\pi}{3} - 10^{-15} $</formula>. </para>
 </simplesect>
 </para>
         </detaileddescription>
@@ -166,8 +166,8 @@
           <declname>stress</declname>
         </param>
         <briefdescription>
-<para>Computes the derivative <formula id="197">$ \frac{\partial \theta}{\partial J_2}$</formula> of the lode angle  <formula id="198">$ \theta
-$</formula> with respect to the second deviatoric invariant <formula id="148">$ J_2 $</formula>. </para>
+<para>Computes the derivative <formula id="134">$ \frac{\partial \theta}{\partial J_2}$</formula> of the lode angle  <formula id="135">$ \theta
+$</formula> with respect to the second deviatoric invariant <formula id="85">$ J_2 $</formula>. </para>
         </briefdescription>
         <detaileddescription>
 <para><parameterlist kind="param"><parameteritem>
@@ -179,7 +179,7 @@ $</formula> with respect to the second deviatoric invariant <formula id="148">$ 
 </parameterdescription>
 </parameteritem>
 </parameterlist>
-<simplesect kind="return"><para>Scalar derivative <formula id="199">$ \tfrac{\partial \theta}{\partial J_2} $</formula>. </para>
+<simplesect kind="return"><para>Scalar derivative <formula id="136">$ \tfrac{\partial \theta}{\partial J_2} $</formula>. </para>
 </simplesect>
 </para>
         </detaileddescription>
@@ -198,7 +198,7 @@ $</formula> with respect to the second deviatoric invariant <formula id="148">$ 
           <declname>stress</declname>
         </param>
         <briefdescription>
-<para>Computes the derivative <formula id="200">$ \frac{\partial \theta}{\partial J_3}$</formula> of the Lode angle <formula id="143">$ \theta $</formula> with respect to the third deviatoric invariant <formula id="180">$ J_3 $</formula>. </para>
+<para>Computes the derivative <formula id="137">$ \frac{\partial \theta}{\partial J_3}$</formula> of the Lode angle <formula id="80">$ \theta $</formula> with respect to the third deviatoric invariant <formula id="117">$ J_3 $</formula>. </para>
         </briefdescription>
         <detaileddescription>
 <para><parameterlist kind="param"><parameteritem>
@@ -206,11 +206,11 @@ $</formula> with respect to the second deviatoric invariant <formula id="148">$ 
 <parametername>stress</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Stress vector in Voigt notation ( <formula id="157">$ \boldsymbol{\sigma} $</formula>). </para>
+<para>Stress vector in Voigt notation ( <formula id="94">$ \boldsymbol{\sigma} $</formula>). </para>
 </parameterdescription>
 </parameteritem>
 </parameterlist>
-<simplesect kind="return"><para>Value of the derivative <formula id="201">$ \frac{\partial \theta}{\partial J_3} $</formula>. </para>
+<simplesect kind="return"><para>Value of the derivative <formula id="138">$ \frac{\partial \theta}{\partial J_3} $</formula>. </para>
 </simplesect>
 </para>
         </detaileddescription>
@@ -229,7 +229,7 @@ $</formula> with respect to the second deviatoric invariant <formula id="148">$ 
           <declname>strain</declname>
         </param>
         <briefdescription>
-<para>Computes the derivative <formula id="202">$ \frac{\partial \theta^{(\varepsilon)}}{\partial J^{(\varepsilon)}_2}$</formula> of the Lode angle in strain space <formula id="203">$ \theta^{(\varepsilon)} $</formula> with respect to the second deviatoric invariant <formula id="177">$ J^{(\varepsilon)}_2 $</formula>. </para>
+<para>Computes the derivative <formula id="139">$ \frac{\partial \theta^{(\varepsilon)}}{\partial J^{(\varepsilon)}_2}$</formula> of the Lode angle in strain space <formula id="140">$ \theta^{(\varepsilon)} $</formula> with respect to the second deviatoric invariant <formula id="114">$ J^{(\varepsilon)}_2 $</formula>. </para>
         </briefdescription>
         <detaileddescription>
 <para><parameterlist kind="param"><parameteritem>
@@ -237,11 +237,11 @@ $</formula> with respect to the second deviatoric invariant <formula id="148">$ 
 <parametername>strain</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Strain vector in Voigt notation ( <formula id="161">$ \boldsymbol{\varepsilon} $</formula>). </para>
+<para>Strain vector in Voigt notation ( <formula id="98">$ \boldsymbol{\varepsilon} $</formula>). </para>
 </parameterdescription>
 </parameteritem>
 </parameterlist>
-<simplesect kind="return"><para>Value of the derivative <formula id="204">$ \frac{\partial \theta^{(\varepsilon)}}{\partial J^{(\varepsilon)}_2} $</formula>. </para>
+<simplesect kind="return"><para>Value of the derivative <formula id="141">$ \frac{\partial \theta^{(\varepsilon)}}{\partial J^{(\varepsilon)}_2} $</formula>. </para>
 </simplesect>
 </para>
         </detaileddescription>
@@ -260,7 +260,7 @@ $</formula> with respect to the second deviatoric invariant <formula id="148">$ 
           <declname>strain</declname>
         </param>
         <briefdescription>
-<para>Computes the derivative <formula id="205">$ \frac{\partial \theta^{(\varepsilon)}}{\partial J^{(\varepsilon)}_3}$</formula> of the Lode angle in strain space <formula id="203">$ \theta^{(\varepsilon)} $</formula> with respect to the third deviatoric invariant <formula id="182">$ J^{(\varepsilon)}_3 $</formula>. </para>
+<para>Computes the derivative <formula id="142">$ \frac{\partial \theta^{(\varepsilon)}}{\partial J^{(\varepsilon)}_3}$</formula> of the Lode angle in strain space <formula id="140">$ \theta^{(\varepsilon)} $</formula> with respect to the third deviatoric invariant <formula id="119">$ J^{(\varepsilon)}_3 $</formula>. </para>
         </briefdescription>
         <detaileddescription>
 <para><parameterlist kind="param"><parameteritem>
@@ -268,11 +268,11 @@ $</formula> with respect to the second deviatoric invariant <formula id="148">$ 
 <parametername>strain</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Strain vector in Voigt notation ( <formula id="161">$ \boldsymbol{\varepsilon} $</formula>). </para>
+<para>Strain vector in Voigt notation ( <formula id="98">$ \boldsymbol{\varepsilon} $</formula>). </para>
 </parameterdescription>
 </parameteritem>
 </parameterlist>
-<simplesect kind="return"><para>Value of the derivative <formula id="206">$ \frac{\partial \theta^{(\varepsilon)}}{\partial J^{(\varepsilon)}_3} $</formula>. </para>
+<simplesect kind="return"><para>Value of the derivative <formula id="143">$ \frac{\partial \theta^{(\varepsilon)}}{\partial J^{(\varepsilon)}_3} $</formula>. </para>
 </simplesect>
 </para>
         </detaileddescription>
@@ -291,7 +291,7 @@ $</formula> with respect to the second deviatoric invariant <formula id="148">$ 
           <declname>stress</declname>
         </param>
         <briefdescription>
-<para>Computes the derivative <formula id="207">$ \frac{\partial J_2}{\partial \boldsymbol{\sigma}}$</formula> of the second deviatoric invariant <formula id="148">$ J_2 $</formula> with respect to the stress vector in Voigt notation. </para>
+<para>Computes the derivative <formula id="144">$ \frac{\partial J_2}{\partial \boldsymbol{\sigma}}$</formula> of the second deviatoric invariant <formula id="85">$ J_2 $</formula> with respect to the stress vector in Voigt notation. </para>
         </briefdescription>
         <detaileddescription>
 <para><parameterlist kind="param"><parameteritem>
@@ -299,11 +299,11 @@ $</formula> with respect to the second deviatoric invariant <formula id="148">$ 
 <parametername>stress</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Stress vector in Voigt notation ( <formula id="157">$ \boldsymbol{\sigma} $</formula>). </para>
+<para>Stress vector in Voigt notation ( <formula id="94">$ \boldsymbol{\sigma} $</formula>). </para>
 </parameterdescription>
 </parameteritem>
 </parameterlist>
-<simplesect kind="return"><para>Vector of partial derivatives <formula id="208">$ \frac{\partial J_2}{\partial \boldsymbol{\sigma}} $</formula> in Voigt notation. </para>
+<simplesect kind="return"><para>Vector of partial derivatives <formula id="145">$ \frac{\partial J_2}{\partial \boldsymbol{\sigma}} $</formula> in Voigt notation. </para>
 </simplesect>
 </para>
         </detaileddescription>
@@ -322,7 +322,7 @@ $</formula> with respect to the second deviatoric invariant <formula id="148">$ 
           <declname>stress</declname>
         </param>
         <briefdescription>
-<para>Computes the derivative <formula id="209">$ \frac{\partial J_3}{\partial \boldsymbol{\sigma}}$</formula> of the third deviatoric invariant <formula id="180">$ J_3 $</formula> with respect to the stress vector in Voigt notation. </para>
+<para>Computes the derivative <formula id="146">$ \frac{\partial J_3}{\partial \boldsymbol{\sigma}}$</formula> of the third deviatoric invariant <formula id="117">$ J_3 $</formula> with respect to the stress vector in Voigt notation. </para>
         </briefdescription>
         <detaileddescription>
 <para><parameterlist kind="param"><parameteritem>
@@ -330,11 +330,11 @@ $</formula> with respect to the second deviatoric invariant <formula id="148">$ 
 <parametername>stress</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Stress vector in Voigt notation ( <formula id="157">$ \boldsymbol{\sigma} $</formula>). </para>
+<para>Stress vector in Voigt notation ( <formula id="94">$ \boldsymbol{\sigma} $</formula>). </para>
 </parameterdescription>
 </parameteritem>
 </parameterlist>
-<simplesect kind="return"><para>Vector of partial derivatives <formula id="210">$ \frac{\partial J_3}{\partial \boldsymbol{\sigma}} $</formula> in Voigt notation. </para>
+<simplesect kind="return"><para>Vector of partial derivatives <formula id="147">$ \frac{\partial J_3}{\partial \boldsymbol{\sigma}} $</formula> in Voigt notation. </para>
 </simplesect>
 </para>
         </detaileddescription>
@@ -353,7 +353,7 @@ $</formula> with respect to the second deviatoric invariant <formula id="148">$ 
           <declname>strain</declname>
         </param>
         <briefdescription>
-<para>Computes the derivative <formula id="211">$ \frac{\partial J^{(\varepsilon)}_2}{\partial \boldsymbol{\varepsilon}} $</formula> of the second deviatoric invariant <formula id="177">$ J^{(\varepsilon)}_2 $</formula> with respect to the strain vector in Voigt notation. </para>
+<para>Computes the derivative <formula id="148">$ \frac{\partial J^{(\varepsilon)}_2}{\partial \boldsymbol{\varepsilon}} $</formula> of the second deviatoric invariant <formula id="114">$ J^{(\varepsilon)}_2 $</formula> with respect to the strain vector in Voigt notation. </para>
         </briefdescription>
         <detaileddescription>
 <para><parameterlist kind="param"><parameteritem>
@@ -361,11 +361,11 @@ $</formula> with respect to the second deviatoric invariant <formula id="148">$ 
 <parametername>strain</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Strain vector in Voigt notation ( <formula id="161">$ \boldsymbol{\varepsilon} $</formula>). </para>
+<para>Strain vector in Voigt notation ( <formula id="98">$ \boldsymbol{\varepsilon} $</formula>). </para>
 </parameterdescription>
 </parameteritem>
 </parameterlist>
-<simplesect kind="return"><para>Vector of partial derivatives  <formula id="212">$ \frac{\partial J^{(\varepsilon)}_2}{\partial
+<simplesect kind="return"><para>Vector of partial derivatives  <formula id="149">$ \frac{\partial J^{(\varepsilon)}_2}{\partial
 \boldsymbol{\varepsilon}} $</formula> in Voigt notation. </para>
 </simplesect>
 </para>
@@ -385,7 +385,7 @@ $</formula> with respect to the second deviatoric invariant <formula id="148">$ 
           <declname>strain</declname>
         </param>
         <briefdescription>
-<para>Computes the derivative <formula id="213">$ \frac{\partial J^{(\varepsilon)}_3}{\partial \boldsymbol{\varepsilon}} $</formula> of the third deviatoric invariant <formula id="182">$ J^{(\varepsilon)}_3 $</formula> with respect to the strain vector in Voigt notation. </para>
+<para>Computes the derivative <formula id="150">$ \frac{\partial J^{(\varepsilon)}_3}{\partial \boldsymbol{\varepsilon}} $</formula> of the third deviatoric invariant <formula id="119">$ J^{(\varepsilon)}_3 $</formula> with respect to the strain vector in Voigt notation. </para>
         </briefdescription>
         <detaileddescription>
 <para><parameterlist kind="param"><parameteritem>
@@ -393,11 +393,11 @@ $</formula> with respect to the second deviatoric invariant <formula id="148">$ 
 <parametername>strain</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Strain vector in Voigt notation ( <formula id="161">$ \boldsymbol{\varepsilon} $</formula>). </para>
+<para>Strain vector in Voigt notation ( <formula id="98">$ \boldsymbol{\varepsilon} $</formula>). </para>
 </parameterdescription>
 </parameteritem>
 </parameterlist>
-<simplesect kind="return"><para>Vector of partial derivatives  <formula id="214">$ \frac{\partial J^{(\varepsilon)}_3}{\partial
+<simplesect kind="return"><para>Vector of partial derivatives  <formula id="151">$ \frac{\partial J^{(\varepsilon)}_3}{\partial
 \boldsymbol{\varepsilon}} $</formula> in Voigt notation. </para>
 </simplesect>
 </para>
@@ -417,8 +417,8 @@ $</formula> with respect to the second deviatoric invariant <formula id="148">$ 
           <declname>strain</declname>
         </param>
         <briefdescription>
-<para>Computes the derivative  <formula id="215">$ \frac{\partial \theta^{(\varepsilon)}}{\partial \boldsymbol{\varepsilon}}
-$</formula> of the Lode angle in strain space <formula id="203">$ \theta^{(\varepsilon)} $</formula> with respect to the strain vector in Voigt notation. </para>
+<para>Computes the derivative  <formula id="152">$ \frac{\partial \theta^{(\varepsilon)}}{\partial \boldsymbol{\varepsilon}}
+$</formula> of the Lode angle in strain space <formula id="140">$ \theta^{(\varepsilon)} $</formula> with respect to the strain vector in Voigt notation. </para>
         </briefdescription>
         <detaileddescription>
 <para><parameterlist kind="param"><parameteritem>
@@ -426,11 +426,11 @@ $</formula> of the Lode angle in strain space <formula id="203">$ \theta^{(\vare
 <parametername>strain</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Strain vector in Voigt notation ( <formula id="161">$ \boldsymbol{\varepsilon} $</formula>). </para>
+<para>Strain vector in Voigt notation ( <formula id="98">$ \boldsymbol{\varepsilon} $</formula>). </para>
 </parameterdescription>
 </parameteritem>
 </parameterlist>
-<simplesect kind="return"><para>Vector of partial derivatives  <formula id="216">$ \frac{\partial \theta^{(\varepsilon)}}{\partial
+<simplesect kind="return"><para>Vector of partial derivatives  <formula id="153">$ \frac{\partial \theta^{(\varepsilon)}}{\partial
 \boldsymbol{\varepsilon}} $</formula> in Voigt notation. </para>
 </simplesect>
 </para>
@@ -450,7 +450,7 @@ $</formula> of the Lode angle in strain space <formula id="203">$ \theta^{(\vare
           <declname>stress</declname>
         </param>
         <briefdescription>
-<para>Computes the derivative <formula id="217">$ \frac{\partial \sigma_I}{\partial \boldsymbol{\sigma}} $</formula> of the principal stresses <formula id="218">$ \sigma_I $</formula> with respect to the stress vector in Voigt notation. </para>
+<para>Computes the derivative <formula id="154">$ \frac{\partial \sigma_I}{\partial \boldsymbol{\sigma}} $</formula> of the principal stresses <formula id="155">$ \sigma_I $</formula> with respect to the stress vector in Voigt notation. </para>
         </briefdescription>
         <detaileddescription>
 <para><parameterlist kind="param"><parameteritem>
@@ -458,11 +458,11 @@ $</formula> of the Lode angle in strain space <formula id="203">$ \theta^{(\vare
 <parametername>stress</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Stress vector in Voigt notation ( <formula id="157">$ \boldsymbol{\sigma} $</formula>). </para>
+<para>Stress vector in Voigt notation ( <formula id="94">$ \boldsymbol{\sigma} $</formula>). </para>
 </parameterdescription>
 </parameteritem>
 </parameterlist>
-<simplesect kind="return"><para>Matrix of partial derivatives <formula id="217">$ \frac{\partial \sigma_I}{\partial \boldsymbol{\sigma}} $</formula>, where each row corresponds to the gradient of one principal stress with respect to <formula id="157">$ \boldsymbol{\sigma} $</formula>. </para>
+<simplesect kind="return"><para>Matrix of partial derivatives <formula id="154">$ \frac{\partial \sigma_I}{\partial \boldsymbol{\sigma}} $</formula>, where each row corresponds to the gradient of one principal stress with respect to <formula id="94">$ \boldsymbol{\sigma} $</formula>. </para>
 </simplesect>
 </para>
         </detaileddescription>
@@ -481,7 +481,7 @@ $</formula> of the Lode angle in strain space <formula id="203">$ \theta^{(\vare
           <declname>strain</declname>
         </param>
         <briefdescription>
-<para>Computes the derivative <formula id="219">$ \frac{\partial \varepsilon^{vol}_{\ominus}}{\partial \varepsilon_I} $</formula> of the volumetric compressive strain <formula id="220">$ \varepsilon^{vol}_{\ominus} $</formula> with respect to the principal strains <formula id="221">$ \varepsilon_I $</formula>. </para>
+<para>Computes the derivative <formula id="156">$ \frac{\partial \varepsilon^{vol}_{\ominus}}{\partial \varepsilon_I} $</formula> of the volumetric compressive strain <formula id="157">$ \varepsilon^{vol}_{\ominus} $</formula> with respect to the principal strains <formula id="158">$ \varepsilon_I $</formula>. </para>
         </briefdescription>
         <detaileddescription>
 <para><parameterlist kind="param"><parameteritem>
@@ -489,11 +489,11 @@ $</formula> of the Lode angle in strain space <formula id="203">$ \theta^{(\vare
 <parametername>strain</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Principal/total strain provided in Voigt notation ( <formula id="161">$ \boldsymbol{\varepsilon} $</formula>), 6 components. </para>
+<para>Principal/total strain provided in Voigt notation ( <formula id="98">$ \boldsymbol{\varepsilon} $</formula>), 6 components. </para>
 </parameterdescription>
 </parameteritem>
 </parameterlist>
-<simplesect kind="return"><para>A 3-component vector ( <formula id="222">$ \partial \varepsilon^{vol}_{\ominus} / \partial \varepsilon_I $</formula>), where each entry is the partial derivative of the corresponding volumetric-compressive component with respect to the principal strains <formula id="135">$ \varepsilon_1, \varepsilon_2, \varepsilon_3 $</formula>. </para>
+<simplesect kind="return"><para>A 3-component vector ( <formula id="159">$ \partial \varepsilon^{vol}_{\ominus} / \partial \varepsilon_I $</formula>), where each entry is the partial derivative of the corresponding volumetric-compressive component with respect to the principal strains <formula id="72">$ \varepsilon_1, \varepsilon_2, \varepsilon_3 $</formula>. </para>
 </simplesect>
 </para>
         </detaileddescription>
@@ -516,18 +516,18 @@ $</formula> of the Lode angle in strain space <formula id="203">$ \theta^{(\vare
           <declname>Cep</declname>
         </param>
         <briefdescription>
-<para>Computes the derivative  <formula id="223">$ \frac{\partial \boldsymbol{\varepsilon}^{p}}{\partial
-\boldsymbol{\varepsilon}} $</formula> of the Voigt-notated plastic strain vector <formula id="224">$ \boldsymbol{\varepsilon}^{p} $</formula> with respect to the Voigt-notated total strain vector <formula id="161">$ \boldsymbol{\varepsilon} $</formula>. </para>
+<para>Computes the derivative  <formula id="160">$ \frac{\partial \boldsymbol{\varepsilon}^{p}}{\partial
+\boldsymbol{\varepsilon}} $</formula> of the Voigt-notated plastic strain vector <formula id="161">$ \boldsymbol{\varepsilon}^{p} $</formula> with respect to the Voigt-notated total strain vector <formula id="98">$ \boldsymbol{\varepsilon} $</formula>. </para>
         </briefdescription>
         <detaileddescription>
-<para>The relation used is    <formula id="225">\[  \frac{\partial \boldsymbol{\varepsilon}^{p}}{\partial \boldsymbol{\varepsilon}}
+<para>The relation used is    <formula id="162">\[  \frac{\partial \boldsymbol{\varepsilon}^{p}}{\partial \boldsymbol{\varepsilon}}
   \;=\; \boldsymbol{I} \;-\; \mathbb{C}^{-1}\,\mathbb{C}^{(ep)}
-\]</formula> where <formula id="94">$ \mathbb{C}^{-1} $</formula> is the elastic compliance (6×6) and <formula id="226">$ \mathbb{C}^{(ep)} $</formula> the elastoplastic stiffness (6×6). <parameterlist kind="param"><parameteritem>
+\]</formula> where <formula id="163">$ \mathbb{C}^{-1} $</formula> is the elastic compliance (6×6) and <formula id="164">$ \mathbb{C}^{(ep)} $</formula> the elastoplastic stiffness (6×6). <parameterlist kind="param"><parameteritem>
 <parameternamelist>
 <parametername>CelInv</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Elastic compliance tensor <formula id="94">$ \mathbb{C}^{-1} $</formula> (6×6 matrix). </para>
+<para>Elastic compliance tensor <formula id="163">$ \mathbb{C}^{-1} $</formula> (6×6 matrix). </para>
 </parameterdescription>
 </parameteritem>
 <parameteritem>
@@ -535,11 +535,11 @@ $</formula> of the Lode angle in strain space <formula id="203">$ \theta^{(\vare
 <parametername>Cep</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Elastoplastic stiffness tensor <formula id="226">$ \mathbb{C}^{(ep)} $</formula> (6×6 matrix). </para>
+<para>Elastoplastic stiffness tensor <formula id="164">$ \mathbb{C}^{(ep)} $</formula> (6×6 matrix). </para>
 </parameterdescription>
 </parameteritem>
 </parameterlist>
-<simplesect kind="return"><para>6×6 matrix <formula id="227">$ \partial \boldsymbol{\varepsilon}^{p} / \partial \boldsymbol{\varepsilon} $</formula> in Voigt form. </para>
+<simplesect kind="return"><para>6×6 matrix <formula id="165">$ \partial \boldsymbol{\varepsilon}^{p} / \partial \boldsymbol{\varepsilon} $</formula> in Voigt form. </para>
 </simplesect>
 </para>
         </detaileddescription>
@@ -562,8 +562,8 @@ $</formula> of the Lode angle in strain space <formula id="203">$ \theta^{(\vare
           <declname>Cep</declname>
         </param>
         <briefdescription>
-<para>Computes the derivative  <formula id="228">$ \frac{\partial \Delta \varepsilon^{p,vol}}{\partial
-\boldsymbol{\varepsilon}} $</formula> of the volumetric plastic strain increment <formula id="229">$ \Delta \varepsilon^{p,vol} $</formula> with respect to the Voigt-notated total strain vector <formula id="161">$ \boldsymbol{\varepsilon} $</formula>. </para>
+<para>Computes the derivative  <formula id="166">$ \frac{\partial \Delta \varepsilon^{p,vol}}{\partial
+\boldsymbol{\varepsilon}} $</formula> of the volumetric plastic strain increment <formula id="167">$ \Delta \varepsilon^{p,vol} $</formula> with respect to the Voigt-notated total strain vector <formula id="98">$ \boldsymbol{\varepsilon} $</formula>. </para>
         </briefdescription>
         <detaileddescription>
 <para><parameterlist kind="param"><parameteritem>
@@ -571,7 +571,7 @@ $</formula> of the Lode angle in strain space <formula id="203">$ \theta^{(\vare
 <parametername>CelInv</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Elastic compliance tensor <formula id="94">$ \mathbb{C}^{-1} $</formula> (6×6 matrix). </para>
+<para>Elastic compliance tensor <formula id="163">$ \mathbb{C}^{-1} $</formula> (6×6 matrix). </para>
 </parameterdescription>
 </parameteritem>
 <parameteritem>
@@ -579,11 +579,11 @@ $</formula> of the Lode angle in strain space <formula id="203">$ \theta^{(\vare
 <parametername>Cep</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Elastoplastic stiffness tensor <formula id="226">$ \mathbb{C}^{(ep)} $</formula> (6×6 matrix). </para>
+<para>Elastoplastic stiffness tensor <formula id="164">$ \mathbb{C}^{(ep)} $</formula> (6×6 matrix). </para>
 </parameterdescription>
 </parameteritem>
 </parameterlist>
-<simplesect kind="return"><para>Row vector (1×6) containing  <formula id="230">$ \partial \Delta \varepsilon^{p,vol} / \partial \boldsymbol{\varepsilon}
+<simplesect kind="return"><para>Row vector (1×6) containing  <formula id="168">$ \partial \Delta \varepsilon^{p,vol} / \partial \boldsymbol{\varepsilon}
 $</formula> in Voigt notation. </para>
 </simplesect>
 </para>
@@ -603,7 +603,7 @@ $</formula> in Voigt notation. </para>
           <declname>dEp</declname>
         </param>
         <briefdescription>
-<para>Computes the derivative <formula id="231">$ \frac{\partial \varepsilon_I}{\partial \boldsymbol{\varepsilon}} $</formula> of the principal strains <formula id="221">$ \varepsilon_I $</formula> with respect to the Voigt-notated strain vector  <formula id="232">$\boldsymbol{\varepsilon} $</formula>. </para>
+<para>Computes the derivative <formula id="169">$ \frac{\partial \varepsilon_I}{\partial \boldsymbol{\varepsilon}} $</formula> of the principal strains <formula id="158">$ \varepsilon_I $</formula> with respect to the Voigt-notated strain vector  <formula id="170">$\boldsymbol{\varepsilon} $</formula>. </para>
         </briefdescription>
         <detaileddescription>
 <para><parameterlist kind="param"><parameteritem>
@@ -615,7 +615,7 @@ $</formula> in Voigt notation. </para>
 </parameterdescription>
 </parameteritem>
 </parameterlist>
-<simplesect kind="return"><para>A 3×6 matrix where each row contains the partial derivatives of one principal strain <formula id="135">$ \varepsilon_1, \varepsilon_2, \varepsilon_3 $</formula> with respect to the 6 Voigt strain components. </para>
+<simplesect kind="return"><para>A 3×6 matrix where each row contains the partial derivatives of one principal strain <formula id="72">$ \varepsilon_1, \varepsilon_2, \varepsilon_3 $</formula> with respect to the 6 Voigt strain components. </para>
 </simplesect>
 </para>
         </detaileddescription>
@@ -642,8 +642,8 @@ $</formula> in Voigt notation. </para>
           <declname>Cep</declname>
         </param>
         <briefdescription>
-<para>Computes the derivative  <formula id="233">$ \frac{\partial \Delta \varepsilon^{p,vol}_{\ominus}}
-{\partial \boldsymbol{\varepsilon}} $</formula> of the volumetric plastic strain increment in compression <formula id="234">$ \Delta \varepsilon^{p,vol}_{\ominus} $</formula> with respect to the strain vector in Voigt notation <formula id="161">$ \boldsymbol{\varepsilon} $</formula>. </para>
+<para>Computes the derivative  <formula id="171">$ \frac{\partial \Delta \varepsilon^{p,vol}_{\ominus}}
+{\partial \boldsymbol{\varepsilon}} $</formula> of the volumetric plastic strain increment in compression <formula id="172">$ \Delta \varepsilon^{p,vol}_{\ominus} $</formula> with respect to the strain vector in Voigt notation <formula id="98">$ \boldsymbol{\varepsilon} $</formula>. </para>
         </briefdescription>
         <detaileddescription>
 <para><parameterlist kind="param"><parameteritem>
@@ -651,7 +651,7 @@ $</formula> in Voigt notation. </para>
 <parametername>dEp</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Incremental plastic strain vector in Voigt notation ( <formula id="235">$\Delta\boldsymbol{\varepsilon^{p}} $</formula>), 6 components. </para>
+<para>Incremental plastic strain vector in Voigt notation ( <formula id="173">$\Delta\boldsymbol{\varepsilon^{p}} $</formula>), 6 components. </para>
 </parameterdescription>
 </parameteritem>
 <parameteritem>
@@ -659,7 +659,7 @@ $</formula> in Voigt notation. </para>
 <parametername>CelInv</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Elastic compliance tensor <formula id="94">$ \mathbb{C}^{-1} $</formula> (6×6 matrix). </para>
+<para>Elastic compliance tensor <formula id="163">$ \mathbb{C}^{-1} $</formula> (6×6 matrix). </para>
 </parameterdescription>
 </parameteritem>
 <parameteritem>
@@ -667,11 +667,11 @@ $</formula> in Voigt notation. </para>
 <parametername>Cep</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Elastoplastic stiffness tensor <formula id="226">$ \mathbb{C}^{(ep)} $</formula> (6×6 matrix). </para>
+<para>Elastoplastic stiffness tensor <formula id="164">$ \mathbb{C}^{(ep)} $</formula> (6×6 matrix). </para>
 </parameterdescription>
 </parameteritem>
 </parameterlist>
-<simplesect kind="return"><para>Row vector (1×6) containing <formula id="236">$ \partial \Delta \varepsilon^{p,vol}_{\ominus} / \partial \boldsymbol{\varepsilon} $</formula> in Voigt notation. </para>
+<simplesect kind="return"><para>Row vector (1×6) containing <formula id="174">$ \partial \Delta \varepsilon^{p,vol}_{\ominus} / \partial \boldsymbol{\varepsilon} $</formula> in Voigt notation. </para>
 </simplesect>
 </para>
         </detaileddescription>

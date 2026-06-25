@@ -89,8 +89,8 @@
         <detaileddescription>
 <para>This method overrides <ref refid="class_marmot_material_finite_strain_1a88a61a579f908cd61a0bf9a7c5394fbd" kindref="member">MarmotMaterialFiniteStrain::computeStress()</ref> and provides a generic AD-based implementation for finite strain material models.</para>
 <para>The child class must implement <ref refid="class_marmot_material_finite_strain_a_d_1a66c6fec0d170786c0f258b7993f46db2" kindref="member">computeStressAD()</ref>, which evaluates the constitutive response (Kirchhoff stress and any state updates) for a dual-valued deformation gradient. This base implementation then uses Marmot::AutomaticDifferentiation::dF_dT() to:<itemizedlist>
-<listitem><para>compute the Kirchhoff stress <formula id="56">$\boldsymbol{\tau}$</formula> for the given deformation, and</para>
-</listitem><listitem><para>compute the consistent algorithmic tangent <formula id="57">$\partial \boldsymbol{\tau} / \partial \boldsymbol{F}$</formula>.</para>
+<listitem><para>compute the Kirchhoff stress <formula id="7">$\boldsymbol{\tau}$</formula> for the given deformation, and</para>
+</listitem><listitem><para>compute the consistent algorithmic tangent <formula id="8">$\partial \boldsymbol{\tau} / \partial \boldsymbol{F}$</formula>.</para>
 </listitem></itemizedlist>
 </para>
 <para><simplesect kind="note"><para>Automatic differentiation requires multiple seeded evaluations of <ref refid="class_marmot_material_finite_strain_a_d_1a66c6fec0d170786c0f258b7993f46db2" kindref="member">computeStressAD()</ref>. Therefore, the state variables are reset to their &quot;old&quot; values before each seeded call. Implementations of <ref refid="class_marmot_material_finite_strain_a_d_1a66c6fec0d170786c0f258b7993f46db2" kindref="member">computeStressAD()</ref> must update state based only on primal values of the dual inputs and must not branch or accumulate history based on derivative components.</para>
@@ -108,7 +108,7 @@
 <parametername direction="out">tangents</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Algorithmic moduli container; filled with <formula id="58">$\partial \tau / \partial F$</formula>. </para>
+<para>Algorithmic moduli container; filled with <formula id="9">$\partial \tau / \partial F$</formula>. </para>
 </parameterdescription>
 </parameteritem>
 <parameteritem>
@@ -116,7 +116,7 @@
 <parametername direction="in">deformation</parametername>
 </parameternamelist>
 <parameterdescription>
-<para><ref refid="struct_marmot_material_finite_strain_1_1_deformation" kindref="compound">Deformation</ref> state (deformation gradient <formula id="43">$\boldsymbol{F}$</formula>). </para>
+<para><ref refid="struct_marmot_material_finite_strain_1_1_deformation" kindref="compound">Deformation</ref> state (deformation gradient <formula id="6">$\boldsymbol{F}$</formula>). </para>
 </parameterdescription>
 </parameteritem>
 <parameteritem>
@@ -171,7 +171,7 @@
 <parametername direction="in">deformation</parametername>
 </parameternamelist>
 <parameterdescription>
-<para><ref refid="struct_marmot_material_finite_strain_1_1_deformation" kindref="compound">Deformation</ref> state in AD form (3D), providing the deformation gradient <formula id="43">$\boldsymbol{F}$</formula> as dual numbers. </para>
+<para><ref refid="struct_marmot_material_finite_strain_1_1_deformation" kindref="compound">Deformation</ref> state in AD form (3D), providing the deformation gradient <formula id="6">$\boldsymbol{F}$</formula> as dual numbers. </para>
 </parameterdescription>
 </parameteritem>
 <parameteritem>

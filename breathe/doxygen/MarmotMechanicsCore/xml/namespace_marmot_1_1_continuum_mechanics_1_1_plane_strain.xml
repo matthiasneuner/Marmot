@@ -17,7 +17,7 @@
 <para>Extracts the plane strain stiffness matrix from a 3D stiffness matrix. </para>
         </briefdescription>
         <detaileddescription>
-<para>Reduces the full 3D stiffness matrix <formula id="79">$\mathbb{C}$</formula> to the plane strain stiffness matrix corresponding to the in-plane components.</para>
+<para>Reduces the full 3D stiffness matrix <formula id="264">$\mathbb{C}$</formula> to the plane strain stiffness matrix corresponding to the in-plane components.</para>
 <para><parameterlist kind="param"><parameteritem>
 <parameternamelist>
 <parametername>C</parametername>

@@ -203,7 +203,7 @@
 </parameterdescription>
 </parameteritem>
 </parameterlist>
-Computes the Kirchhoff <formula id="56">$\boldsymbol{\tau}$</formula> stress from the deformation gradient <formula id="43">$\boldsymbol{F}$</formula> and the time increment <formula id="60">$\Delta t$</formula>. It further updates the mass density <formula id="61">$\rho$</formula> and the elastic energy density. Additionally, computes the algorithmic tangent moduli <formula id="59">$\frac{\partial \boldsymbol{\tau}}{\partial \boldsymbol{F}}$</formula>. </para>
+Computes the Kirchhoff <formula id="7">$\boldsymbol{\tau}$</formula> stress from the deformation gradient <formula id="6">$\boldsymbol{F}$</formula> and the time increment <formula id="48">$\Delta t$</formula>. It further updates the mass density <formula id="49">$\rho$</formula> and the elastic energy density. Additionally, computes the algorithmic tangent moduli <formula id="47">$\frac{\partial \boldsymbol{\tau}}{\partial \boldsymbol{F}}$</formula>. </para>
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>

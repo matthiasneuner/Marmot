@@ -54,7 +54,7 @@
 <parametername>dStressdDeformationGradient3D</parametername>
 </parameternamelist>
 <parameterdescription>
-<para>Derivative of 3D stress w.r.t. deformation gradient ( <formula id="104">$6 \times 3 \times 3$</formula> tensor). </para>
+<para>Derivative of 3D stress w.r.t. deformation gradient ( <formula id="240">$6 \times 3 \times 3$</formula> tensor). </para>
 </parameterdescription>
 </parameteritem>
 </parameterlist>

@@ -82,11 +82,8 @@ namespace Marmot::Materials {
     const double beta;
     const double b;
 
-    // implementation
-    /** Algorithm variant selector (read from @c materialProperties[9]). */
-    const int implementationType;
     // mass properties;
-    /** Density (read from @c materialProperties[10]) (if provided). */
+    /** Density (read from @c materialProperties[9]) (if provided). */
     const double density;
 
     /**
@@ -102,36 +99,11 @@ namespace Marmot::Materials {
                         const Deformation< 3 >&    deformation,
                         const TimeIncrement&       timeIncrement ) const override;
 
-    void computeStressWithScalarReturnMapping( ConstitutiveResponse< 3 >& response,
-                                               AlgorithmicModuli< 3 >&    tangents,
-                                               const Deformation< 3 >&    deformation,
-                                               const TimeIncrement&       timeIncrement ) const;
-
-    void computeStressWithFullReturnMapping( ConstitutiveResponse< 3 >& response,
-                                             AlgorithmicModuli< 3 >&    tangents,
-                                             const Deformation< 3 >&    deformation,
-                                             const TimeIncrement&       timeIncrement ) const;
-
-    void computeStressFDAF( ConstitutiveResponse< 3 >& response,
-                            AlgorithmicModuli< 3 >&    tangents,
-                            const Deformation< 3 >&    deformation,
-                            const TimeIncrement&       timeIncrement ) const;
-
-    void computeStressFDAC( ConstitutiveResponse< 3 >& response,
-                            AlgorithmicModuli< 3 >&    tangents,
-                            const Deformation< 3 >&    deformation,
-                            const TimeIncrement&       timeIncrement ) const;
-
-    void computeStressCSDA( ConstitutiveResponse< 3 >& response,
-                            AlgorithmicModuli< 3 >&    tangents,
-                            const Deformation< 3 >&    deformation,
-                            const TimeIncrement&       timeIncrement ) const;
-
     double getDensity( const double* stateVars ) const override
     {
-      if ( this->nMaterialProperties < 11 ) {
+      if ( this->nMaterialProperties < 10 ) {
         throw std::runtime_error(
-          std::string( MakeString() << __PRETTY_FUNCTION__ << ": No density given! nMaterialProperties < 11." ) );
+          std::string( MakeString() << __PRETTY_FUNCTION__ << ": No density given! nMaterialProperties < 10." ) );
       }
       return this->density;
     }
@@ -155,20 +127,6 @@ namespace Marmot::Materials {
       df_dFe                                                    = einsum< IJ, IJKL >( df_dMandel, dMandel_dFe );
 
       return { f, df_dFe, df_dBetaP };
-    }
-
-    /** @brief Yield function templated w.r.t. Mandel stress. */
-    template < typename T >
-    T yieldFunctionFromStress( const Tensor33t< T >& mandelStress, const T betaP ) const
-    {
-      const T              sigM = 1.0 / 3.0 * trace( mandelStress );
-      const Tensor33t< T > dev  = deviatoric( mandelStress );
-      T                    rho  = sqrt( Fastor::inner( dev, dev ) );
-      if ( double( rho ) == 0.0 )
-        rho += 1e-15;
-      const T q = sqrt( 1.5 ) * rho;
-      const T f = q + T( Constants::sqrt3 * beta ) * sigM - betaP - T( Constants::sqrt3 * alpha_0 );
-      return f;
     }
 
     /** @brief Yield function double version w.r.t. Mandel stress. */
@@ -195,48 +153,6 @@ namespace Marmot::Materials {
       Tensor3333d d2f_dMandel_dMandel = Constants::sqrt3_2 * d2Rho_dMandel_dMandel;
 
       return { f, df_dMandel, d2f_dMandel_dMandel, -1.0 };
-    }
-
-    /** @brief First-order derivatives of f(M, \beta_p) w.r.t. Mandel stress (templated). */
-    template < typename T >
-    std::tuple< T, Tensor33t< T >, T > yieldFunctionFromStressFirstOrderDerived( const Tensor33t< T >& mandelStress,
-                                                                                 const T               betaP ) const
-    {
-      const T        sigM = 1.0 / 3.0 * trace( mandelStress );
-      Tensor33t< T > dev  = deviatoric( mandelStress );
-      T              rho  = sqrt( Fastor::inner( dev, dev ) );
-      if ( Math::makeReal( rho ) == 0.0 )
-        rho += 1e-15;
-      const T q = sqrt( 1.5 ) * rho;
-      const T f = q + T( Constants::sqrt3 * beta ) * sigM - betaP - T( Constants::sqrt3 * alpha_0 );
-
-      const Tensor33t< T > dRho_dMandel  = multiplyFastorTensorWithScalar( dev, 1. / rho );
-      const Tensor33t< T > dSigM_dMandel = multiplyFastorTensorWithScalar( fastorTensorFromDoubleTensor< T >(
-                                                                             Spatial3D::I ),
-                                                                           T( 1. / 3. ) );
-      const Tensor33t< T > df_dMandel    = multiplyFastorTensorWithScalar( dRho_dMandel, T( Constants::sqrt3_2 ) ) +
-                                        multiplyFastorTensorWithScalar( dSigM_dMandel, T( Constants::sqrt3 * beta ) );
-
-      return { f, df_dMandel, T( -1.0 ) };
-    }
-
-    /** @brief Plastic potential gradient w.r.t. Mandel stress (templated). */
-    template < typename T >
-    Tensor33t< T > plasticPotentialGradientFromStress( const Tensor33t< T >& mandelStress ) const
-    {
-      Tensor33t< T > dev = deviatoric( mandelStress );
-      T              rho = sqrt( Fastor::inner( dev, dev ) );
-      if ( Math::makeReal( rho ) == 0.0 )
-        rho += 1e-15;
-
-      const Tensor33t< T > dRho_dMandel  = multiplyFastorTensorWithScalar( dev, 1. / rho );
-      const Tensor33t< T > dSigM_dMandel = multiplyFastorTensorWithScalar( fastorTensorFromDoubleTensor< T >(
-                                                                             Spatial3D::I ),
-                                                                           T( 1. / 3. ) );
-      const Tensor33t< T > dg_dMandel    = multiplyFastorTensorWithScalar( dRho_dMandel, T( Constants::sqrt3_2 ) ) +
-                                        multiplyFastorTensorWithScalar( dSigM_dMandel, T( Constants::sqrt3 * b ) );
-
-      return dg_dMandel;
     }
 
     /** @brief Plastic potential gradient and Hessian (double version). */
@@ -292,96 +208,11 @@ namespace Marmot::Materials {
       return { mandel, dMandel_dFe };
     }
 
-    template < typename T >
-    Tensor33t< T > computeMandelStressOnly( const Tensor33t< T >& Fe ) const
-    {
-      using namespace Marmot::ContinuumMechanics;
-      Tensor33t< T > Ce = DeformationMeasures::rightCauchyGreen( Fe );
-
-      T              psi_;
-      Tensor33t< T > dPsi_dCe;
-
-      std::tie( psi_, dPsi_dCe )  = EnergyDensityFunctions::FirstOrderDerived::PenceGouPotentialB( Ce, K, G );
-      Tensor33t< T >       PK2    = multiplyFastorTensorWithScalar( dPsi_dCe, T( 2.0 ) );
-      const Tensor33t< T > mandel = Ce % PK2;
-      return mandel;
-    }
-
-    template < typename T >
-    T computeBetaPOnly( const T alphaP ) const
-    {
-      return T( hExpDelta ) * ( T( 1.0 ) - exp( -alphaP * T( hExp ) ) ) + alphaP * T( H );
-    }
-
     std::tuple< double, double > computeBetaP( const double alphaP ) const
     {
       const double beta           = hExpDelta * ( 1.0 - std::exp( -hExp * alphaP ) ) + alphaP * H;
       const double dBetaP_dAlphaP = hExpDelta * hExp * std::exp( -hExp * alphaP ) + H;
       return { beta, dBetaP_dAlphaP };
-    }
-
-    template < typename T >
-    Tensor33t< T > computeReturnMappingDirection( Tensor33t< T > Fe, T betaP ) const
-    {
-      Tensor33t< T > mandelStressTrial = computeMandelStressOnly( Fe );
-      Tensor33t< T > dg_dS             = plasticPotentialGradientFromStress( mandelStressTrial );
-      return dg_dS;
-    }
-
-    template < typename T >
-    std::tuple< Tensor33d, Tensor33d > computePlasticIncrement( Tensor33t< T > dg_dS, T dLambda ) const
-    {
-      Tensor33d   dGp = multiplyFastorTensorWithScalar( dg_dS, dLambda );
-      Tensor33d   dFp;
-      Tensor3333d ddFp_ddGp;
-      std::tie( dFp, ddFp_ddGp ) = ContinuumMechanics::FiniteStrain::Plasticity::FlowIntegration::FirstOrderDerived::
-        exponentialMap( dGp );
-
-      return { dFp, einsum< IJKL, KL >( ddFp_ddGp, dg_dS ) };
-    }
-
-    template < typename T >
-    VectorXt< T > computeResidualVector( const VectorXt< T >& X,
-                                         const Tensor33d&     FeTrial,
-                                         const double         alphaPTrial ) const
-    {
-      const int idxA = 9;
-      const int idxF = 10;
-      using namespace Eigen;
-      using mV9t = Eigen::Map< Eigen::Matrix< T, 9, 1 > >;
-      VectorXt< T > R( 11 );
-      R( 9 ) = -alphaPTrial;
-
-      const Tensor33t< T > Fe( X.segment( 0, 9 ).data() );
-      const T              dLambda = X( 10 );
-      const T              alphaP  = X( 9 );
-      const T              betaP   = computeBetaPOnly( alphaP );
-
-      Tensor33t< T > mandelStress = computeMandelStressOnly( Fe );
-
-      T              f, df_dBetaP;
-      Tensor33t< T > df_dMandel;
-      std::tie( f, df_dMandel, df_dBetaP ) = yieldFunctionFromStressFirstOrderDerived( mandelStress, betaP );
-
-      Tensor33t< T >       dg_dMandel = plasticPotentialGradientFromStress( mandelStress );
-      const Tensor33t< T > dGp        = multiplyFastorTensorWithScalar( dg_dMandel, dLambda );
-      const Tensor33t< T > dFp = ContinuumMechanics::FiniteStrain::Plasticity::FlowIntegration::exponentialMap( dGp );
-
-      VectorXt< T > aux = mV9t( Tensor33t< T >( einsum< iJ, JK >( Fe, dFp ) ).data() ) -
-                          mV9t( fastorTensorFromDoubleTensor< T >( FeTrial ).data() );
-      R( 0 )    = aux( 0 );
-      R( 1 )    = aux( 1 );
-      R( 2 )    = aux( 2 );
-      R( 3 )    = aux( 3 );
-      R( 4 )    = aux( 4 );
-      R( 5 )    = aux( 5 );
-      R( 6 )    = aux( 6 );
-      R( 7 )    = aux( 7 );
-      R( 8 )    = aux( 8 );
-      R( idxA ) = ( alphaP + dLambda * df_dBetaP ) - alphaPTrial;
-      R( idxF ) = f / T( G );
-
-      return R;
     }
 
     std::tuple< Eigen::VectorXd, Eigen::MatrixXd > computeResidualVectorAndTangent( const Eigen::VectorXd& X,

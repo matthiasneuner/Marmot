@@ -1,3 +1,28 @@
+/* ---------------------------------------------------------------------
+ *                                       _
+ *  _ __ ___   __ _ _ __ _ __ ___   ___ | |_
+ * | '_ ` _ \ / _` | '__| '_ ` _ \ / _ \| __|
+ * | | | | | | (_| | |  | | | | | | (_) | |_
+ * |_| |_| |_|\__,_|_|  |_| |_| |_|\___/ \__|
+ *
+ * Unit of Strength of Materials and Structural Analysis
+ * University of Innsbruck
+ * 2026 - today
+ *
+ * festigkeitslehre@uibk.ac.at
+ *
+ * This file is part of the MAteRialMOdellingToolbox (marmot).
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * The full text of the license can be found in the file LICENSE.md at
+ * the top level directory of marmot.
+ * ---------------------------------------------------------------------
+ */
+
 #include "Marmot/FiniteStrainDruckerPrager.h"
 #include "Marmot/MarmotFastorTensorBasics.h"
 #include "Marmot/MarmotMaterialFiniteStrain.h"
@@ -10,126 +35,116 @@ using namespace Marmot::Materials;
 using namespace Marmot::FastorStandardTensors;
 using namespace Marmot::FastorIndices;
 
-std::string getAlgorithmName( int k )
-{
-  switch ( k ) {
-  case 1: return "FullReturnMapping";
-  case 2: return "FDAF";
-  case 3: return "FDAC";
-  case 4: return "CSDA";
-  default: return "Unknown";
-  }
-}
-
 void testSetup( const std::string& testName,
                 const Tensor33d&   inputF,
                 bool               ObjectivityCheck = false,
                 bool               IsotropyCheck    = false )
 {
-  for ( int k = 1; k < 5; k++ ) {
-    std::string algorithmName = getAlgorithmName( k );
+  // Properties: K, G, cohesion, phi, psi, A, hExpDelta, hExp, H, density
+  std::array< double, 10 > materialProperties_ = { 175000, 80800, 200, 30, 10, 1.0, 300, 15, 50, 0.0 };
+  const double             nMaterialProperties = 10;
+  const int                elLabel             = 1;
 
-    // Properties: K, G, cohesion, phi, psi, A, hExpDelta, hExp, H, implementationType
-    std::array< double, 10 > materialProperties_ =
-      { 175000, 80800, 200, 30, 10, 1.0, 300, 15, 50, static_cast< double >( k ) };
-    const double nMaterialProperties = 10;
-    const int    elLabel             = 1;
+  FiniteStrainDruckerPrager mat = FiniteStrainDruckerPrager( &materialProperties_[0], nMaterialProperties, elLabel );
 
-    FiniteStrainDruckerPrager mat = FiniteStrainDruckerPrager( &materialProperties_[0], nMaterialProperties, elLabel );
+  double                   alphaP = 0.0;
+  Tensor33d                Fp     = Marmot::FastorStandardTensors::Spatial3D::I;
+  std::array< double, 10 > stateVars_;
+  std::memcpy( stateVars_.data(), Fp.data(), 9 * sizeof( double ) );
+  stateVars_[9] = alphaP;
 
-    double                   alphaP = 0.0;
-    Tensor33d                Fp     = Marmot::FastorStandardTensors::Spatial3D::I;
-    std::array< double, 10 > stateVars_;
-    std::memcpy( stateVars_.data(), Fp.data(), 9 * sizeof( double ) );
-    stateVars_[9] = alphaP;
+  std::array< double, 10 > stateVarsInitial = stateVars_;
 
-    std::array< double, 10 > stateVarsInitial = stateVars_;
+  mat.initializeYourself( stateVars_.data(), 10 );
 
-    mat.initializeYourself( stateVars_.data(), 10 );
+  FiniteStrainDruckerPrager::Deformation< 3 > def;
+  FiniteStrainDruckerPrager::TimeIncrement    timeInc = { 0, 0.1 };
 
-    FiniteStrainDruckerPrager::Deformation< 3 > def;
-    FiniteStrainDruckerPrager::TimeIncrement    timeInc = { 0, 0.1 };
+  FiniteStrainDruckerPrager::ConstitutiveResponse< 3 > response( Tensor33d( 0.0 ), 0.0, 0.0, stateVars_.data() );
+  FiniteStrainDruckerPrager::AlgorithmicModuli< 3 >    tangent;
 
-    FiniteStrainDruckerPrager::ConstitutiveResponse< 3 > response( Tensor33d( 0.0 ), 0.0, 0.0, stateVars_.data() );
-    FiniteStrainDruckerPrager::AlgorithmicModuli< 3 >    tangent;
+  def.F = inputF;
 
-    def.F = inputF;
+  mat.computeStress( response, tangent, def, timeInc );
 
-    mat.computeStress( response, tangent, def, timeInc );
-
-    if ( ObjectivityCheck == false && IsotropyCheck == false ) {
-      for ( int i = 0; i < 3; i++ )
-        for ( int j = 0; j < 3; j++ )
-          throwExceptionOnFailure( checkIfEqual( response.tau( i, j ), response.tau( j, i ), 1e-10 ),
-                                   testName + " - Kirchhoff stress tensor symmetry check failed for " + algorithmName +
-                                     " for FiniteStrainDruckerPrager in " + std::string( __PRETTY_FUNCTION__ ) );
-    }
-
-    if ( ObjectivityCheck ) {
-      Tensor33d stressUnrotated = response.tau;
-      Tensor33d F_unrotated     = def.F;
-
-      for ( int phi_deg = 0; phi_deg <= 180; phi_deg += 30 ) {
-        stateVars_ = stateVarsInitial;
-        mat.initializeYourself( stateVars_.data(), 10 );
-
-        double phi = Marmot::Math::degToRad( phi_deg );
-
-        Tensor33d Q( 0.0 );
-        Q( 0, 0 ) = cos( phi );
-        Q( 0, 1 ) = -sin( phi );
-        Q( 1, 0 ) = sin( phi );
-        Q( 1, 1 ) = cos( phi );
-        Q( 2, 2 ) = 1;
-
-        Tensor33d F_rotated = einsum< ik, kj, to_ij >( Q, F_unrotated );
-        def.F               = F_rotated;
-
-        mat.computeStress( response, tangent, def, timeInc );
-
-        Tensor33d stressNew     = response.tau;
-        Tensor33d stressRotated = einsum< iI, IJ, jJ, to_ij >( Q, stressUnrotated, Q );
-
-        throwExceptionOnFailure( checkIfEqual( stressNew, stressRotated, 1e-10 ),
-                                 testName + " - Objectivity test failed for " + algorithmName +
-                                   " (phi_deg=" + std::to_string( phi_deg ) + ") for FiniteStrainDruckerPrager in " +
+  if ( ObjectivityCheck == false && IsotropyCheck == false ) {
+    for ( int i = 0; i < 3; i++ )
+      for ( int j = 0; j < 3; j++ )
+        throwExceptionOnFailure( checkIfEqual( response.tau( i, j ), response.tau( j, i ), 1e-10 ),
+                                 testName +
+                                   " - Kirchhoff stress tensor symmetry check failed "
+                                   "for FiniteStrainDruckerPrager in " +
                                    std::string( __PRETTY_FUNCTION__ ) );
-      }
+  }
+
+  if ( ObjectivityCheck ) {
+    Tensor33d stressUnrotated = response.tau;
+    Tensor33d F_unrotated     = def.F;
+
+    for ( int phi_deg = 0; phi_deg <= 180; phi_deg += 30 ) {
+      stateVars_ = stateVarsInitial;
+      mat.initializeYourself( stateVars_.data(), 10 );
+
+      double phi = Marmot::Math::degToRad( phi_deg );
+
+      Tensor33d Q( 0.0 );
+      Q( 0, 0 ) = cos( phi );
+      Q( 0, 1 ) = -sin( phi );
+      Q( 1, 0 ) = sin( phi );
+      Q( 1, 1 ) = cos( phi );
+      Q( 2, 2 ) = 1;
+
+      Tensor33d F_rotated = einsum< ik, kj, to_ij >( Q, F_unrotated );
+      def.F               = F_rotated;
+
+      mat.computeStress( response, tangent, def, timeInc );
+
+      Tensor33d stressNew     = response.tau;
+      Tensor33d stressRotated = einsum< iI, IJ, jJ, to_ij >( Q, stressUnrotated, Q );
+
+      throwExceptionOnFailure( checkIfEqual( stressNew, stressRotated, 1e-10 ),
+                               testName +
+                                 " - Objectivity test failed "
+                                 "(phi_deg=" +
+                                 std::to_string( phi_deg ) + ") for FiniteStrainDruckerPrager in " +
+                                 std::string( __PRETTY_FUNCTION__ ) );
     }
+  }
 
-    if ( IsotropyCheck ) {
-      Tensor33d stressUnrotated = response.tau;
-      Tensor33d F_unrotated     = def.F;
-      Tensor33d Fp_unrotated( 0.0 );
-      std::memcpy( Fp_unrotated.data(), stateVars_.data(), 9 * sizeof( double ) );
-      double alphaP_unrotated = stateVars_[9];
+  if ( IsotropyCheck ) {
+    Tensor33d stressUnrotated = response.tau;
+    Tensor33d F_unrotated     = def.F;
+    Tensor33d Fp_unrotated( 0.0 );
+    std::memcpy( Fp_unrotated.data(), stateVars_.data(), 9 * sizeof( double ) );
+    double alphaP_unrotated = stateVars_[9];
 
-      for ( int phi_deg = 0; phi_deg <= 180; phi_deg += 30 ) {
-        double phi = Marmot::Math::degToRad( phi_deg );
+    for ( int phi_deg = 0; phi_deg <= 180; phi_deg += 30 ) {
+      double phi = Marmot::Math::degToRad( phi_deg );
 
-        Tensor33d Q( 0.0 );
-        Q( 0, 0 ) = cos( phi );
-        Q( 0, 1 ) = -sin( phi );
-        Q( 1, 0 ) = sin( phi );
-        Q( 1, 1 ) = cos( phi );
-        Q( 2, 2 ) = 1;
+      Tensor33d Q( 0.0 );
+      Q( 0, 0 ) = cos( phi );
+      Q( 0, 1 ) = -sin( phi );
+      Q( 1, 0 ) = sin( phi );
+      Q( 1, 1 ) = cos( phi );
+      Q( 2, 2 ) = 1;
 
-        Tensor33d F_rotated  = einsum< ik, kj, to_ij >( F_unrotated, Q );
-        Tensor33d Fp_rotated = einsum< ik, kj, to_ij >( Fp_unrotated, Q );
+      Tensor33d F_rotated  = einsum< ik, kj, to_ij >( F_unrotated, Q );
+      Tensor33d Fp_rotated = einsum< ik, kj, to_ij >( Fp_unrotated, Q );
 
-        def.F = F_rotated;
-        std::memcpy( stateVars_.data(), Fp_rotated.data(), 9 * sizeof( double ) );
-        stateVars_[9] = alphaP_unrotated;
+      def.F = F_rotated;
+      std::memcpy( stateVars_.data(), Fp_rotated.data(), 9 * sizeof( double ) );
+      stateVars_[9] = alphaP_unrotated;
 
-        mat.computeStress( response, tangent, def, timeInc );
+      mat.computeStress( response, tangent, def, timeInc );
 
-        Tensor33d stressNew = response.tau;
+      Tensor33d stressNew = response.tau;
 
-        throwExceptionOnFailure( checkIfEqual( stressNew, stressUnrotated, 1e-10 ),
-                                 testName + " - Isotropy test failed for " + algorithmName +
-                                   " (phi_deg=" + std::to_string( phi_deg ) + ") for FiniteStrainDruckerPrager in " +
-                                   std::string( __PRETTY_FUNCTION__ ) );
-      }
+      throwExceptionOnFailure( checkIfEqual( stressNew, stressUnrotated, 1e-10 ),
+                               testName +
+                                 " - Isotropy test failed "
+                                 "(phi_deg=" +
+                                 std::to_string( phi_deg ) + ") for FiniteStrainDruckerPrager in " +
+                                 std::string( __PRETTY_FUNCTION__ ) );
     }
   }
 }
@@ -167,7 +182,7 @@ void testObjectivityAndIsotropy()
 void testWithMPSolver()
 {
   using namespace Marmot::Solvers;
-  auto        materialProperties = std::vector< double >{ 175000, 80800, 200, 30, 10, 1.0, 300, 15, 50, 3 };
+  auto        materialProperties = std::vector< double >{ 175000, 80800, 200, 30, 10, 1.0, 300, 15, 50, 0.0 };
   auto        solveropts         = MarmotMaterialPointSolverFiniteStrain::SolverOptions();
   std::string matName            = "FINITESTRAINDRUCKERPRAGER";
   auto        solver             = MarmotMaterialPointSolverFiniteStrain( matName,

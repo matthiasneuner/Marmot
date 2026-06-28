@@ -62,6 +62,36 @@ void testStateVarVectorManagerLayout()
                            "Layout requires 5 doubles" );
 }
 
+void testCompileTimeStateLayout()
+{
+  using Layout = CompileTimeStateLayout< StateVar< double&, 1, "var1" >, StateVar< double&, 1, "var2" > >;
+
+  std::vector< double > stateVarData( 2 );
+  stateVarData[0] = 42.0;
+  stateVarData[1] = 84.0;
+
+  double& var1 = Layout::get< 0 >( stateVarData.data() );
+  double& var2 = Layout::get< 1 >( stateVarData.data() );
+
+  throwExceptionOnFailure( checkIfEqual( var1, 42.0 ), "CompileTime Layout var1" );
+  throwExceptionOnFailure( checkIfEqual( var2, 84.0 ), "CompileTime Layout var2" );
+
+  // test const base pointer
+  const double* constBase = stateVarData.data();
+  const double& constVar1 = Layout::get< 0 >( constBase );
+  const double& constVar2 = Layout::get< 1 >( constBase );
+
+  throwExceptionOnFailure( checkIfEqual( constVar1, 42.0 ), "CompileTime Layout const var1" );
+  throwExceptionOnFailure( checkIfEqual( constVar2, 84.0 ), "CompileTime Layout const var2" );
+
+  // test dynamic registration
+  MarmotStateLayoutDynamic dynamicLayout;
+  Layout::registerLayout( dynamicLayout );
+  throwExceptionOnFailure( dynamicLayout.totalSize() == 2, "Dynamic layout totalSize from CompileTime" );
+  throwExceptionOnFailure( dynamicLayout.get( "var1" ).first == 0, "Dynamic layout offset var1" );
+  throwExceptionOnFailure( dynamicLayout.get( "var2" ).first == 1, "Dynamic layout offset var2" );
+}
+
 int main()
 {
 
@@ -69,6 +99,7 @@ int main()
     testStateVarVectorManagerFind,
     testStateVarVectorManagerContains,
     testStateVarVectorManagerLayout,
+    testCompileTimeStateLayout,
   };
 
   executeTestsAndCollectExceptions( tests );

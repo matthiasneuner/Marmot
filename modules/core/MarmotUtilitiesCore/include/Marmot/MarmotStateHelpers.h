@@ -27,11 +27,14 @@
 #include "Fastor/Fastor.h"
 #include "Marmot/MarmotUtils.h"
 #include <Eigen/Dense>
+#include <algorithm>
 #include <cstddef>
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 /**
@@ -129,6 +132,19 @@ struct StateMapper< Eigen::Map< Eigen::Matrix< Scalar, Rows, Cols > > > {
 };
 /// \endcond
 
+template < std::size_t N >
+struct FixedString {
+  char value[N];
+  constexpr FixedString( const char ( &str )[N] ) { std::copy_n( str, N, value ); }
+};
+
+template < typename View, std::size_t Size, FixedString Name >
+struct StateVar {
+  using view_type                   = View;
+  static constexpr std::size_t size = Size;
+  static constexpr const char* name = Name.value;
+};
+
 /**
  * @class MarmotStateLayoutDynamic
  * @brief Runtime-defined layout for a flat array of named `double` state variables.
@@ -150,15 +166,16 @@ public:
   };
 
   /**
-   * @brief Register a new named state variable.
+   * @brief Register a new named state variable and return its index.
    *
    * Must be called before finalize(). Adding a variable with an already-registered name
    * or calling this method after finalize() throws @c std::runtime_error.
    *
    * @param name  Unique name for the state variable.
    * @param size  Number of `double` values required by the variable.
+   * @return      The zero-based index of the registered variable.
    */
-  void add( std::string name, std::size_t size )
+  std::size_t add( std::string name, std::size_t size )
   {
     if ( finalized )
       throw std::runtime_error( "Cannot add variables after finalize()." );
@@ -166,8 +183,10 @@ public:
     if ( name_to_index.contains( name ) )
       throw std::runtime_error( "Duplicate state variable: " + name );
 
-    name_to_index[name] = variables.size();
+    std::size_t index   = variables.size();
+    name_to_index[name] = index;
     variables.push_back( { std::move( name ), size, 0 } );
+    return index;
   }
 
   /**
@@ -191,6 +210,21 @@ public:
   }
 
   /**
+   * @brief Return the index of a registered variable by name.
+   *
+   * @param name  Name of the variable to look up.
+   * @return      The zero-based index of the registered variable.
+   * @throws std::runtime_error if @p name is not registered.
+   */
+  std::size_t getIndex( const std::string& name ) const
+  {
+    auto it = name_to_index.find( name );
+    if ( it == name_to_index.end() )
+      throw std::runtime_error( "Unknown state variable: " + name );
+    return it->second;
+  }
+
+  /**
    * @brief Return the @ref VarInfo record for a registered variable.
    *
    * @param name  Name of the variable to look up.
@@ -206,7 +240,7 @@ public:
   }
 
   /**
-   * @brief Return the {offset, size} pair for a registered variable.
+   * @brief Return the {offset, size} pair for a registered variable by name.
    *
    * @param name  Name of the variable.
    * @return      A pair `{offset, size}` (both in units of `double`).
@@ -219,7 +253,22 @@ public:
   }
 
   /**
-   * @brief Return a raw pointer to a variable inside a state vector.
+   * @brief Return the {offset, size} pair for a registered variable by index.
+   *
+   * @param index  Index of the variable.
+   * @return       A pair `{offset, size}` (both in units of `double`).
+   * @throws std::out_of_range if @p index is invalid.
+   */
+  std::pair< std::size_t, std::size_t > get( std::size_t index ) const
+  {
+    if ( index >= variables.size() )
+      throw std::out_of_range( "State variable index out of range." );
+    const auto& v = variables[index];
+    return { v.offset, v.size };
+  }
+
+  /**
+   * @brief Return a raw pointer to a variable inside a state vector by name.
    *
    * @param base  Pointer to the beginning of the state vector.
    * @param name  Name of the variable.
@@ -233,7 +282,37 @@ public:
   }
 
   /**
-   * @brief Return a `std::span<double>` view of a variable inside a state vector.
+   * @brief Return a raw pointer to a variable inside a state vector by index.
+   *
+   * @param base   Pointer to the beginning of the state vector.
+   * @param index  Index of the variable.
+   * @return       `base + offset` for the indexed variable.
+   * @throws std::out_of_range if @p index is invalid.
+   */
+  double* getPtr( double* base, std::size_t index ) const
+  {
+    if ( index >= variables.size() )
+      throw std::out_of_range( "State variable index out of range." );
+    return base + variables[index].offset;
+  }
+
+  /**
+   * @brief Return a const raw pointer to a variable inside a state vector by index.
+   *
+   * @param base   Pointer to the beginning of the state vector.
+   * @param index  Index of the variable.
+   * @return       `base + offset` for the indexed variable.
+   * @throws std::out_of_range if @p index is invalid.
+   */
+  const double* getPtr( const double* base, std::size_t index ) const
+  {
+    if ( index >= variables.size() )
+      throw std::out_of_range( "State variable index out of range." );
+    return base + variables[index].offset;
+  }
+
+  /**
+   * @brief Return a `std::span<double>` view of a variable inside a state vector by name.
    *
    * @param base  Pointer to the beginning of the state vector.
    * @param name  Name of the variable.
@@ -247,7 +326,23 @@ public:
   }
 
   /**
-   * @brief Return a @ref StateView for a variable inside a state vector.
+   * @brief Return a `std::span<double>` view of a variable inside a state vector by index.
+   *
+   * @param base   Pointer to the beginning of the state vector.
+   * @param index  Index of the variable.
+   * @return       A span covering the variable.
+   * @throws std::out_of_range if @p index is invalid.
+   */
+  std::span< double > getSpan( double* base, std::size_t index ) const
+  {
+    if ( index >= variables.size() )
+      throw std::out_of_range( "State variable index out of range." );
+    const auto& v = variables[index];
+    return { base + v.offset, v.size };
+  }
+
+  /**
+   * @brief Return a @ref StateView for a variable inside a state vector by name.
    *
    * @param base  Pointer to the beginning of the state vector.
    * @param name  Name of the variable.
@@ -261,7 +356,23 @@ public:
   }
 
   /**
-   * @brief Map a variable inside a state vector to a typed view via `StateMapper`.
+   * @brief Return a @ref StateView for a variable inside a state vector by index.
+   *
+   * @param base   Pointer to the beginning of the state vector.
+   * @param index  Index of the variable.
+   * @return       A @ref StateView with offset and size.
+   * @throws std::out_of_range if @p index is invalid.
+   */
+  StateView getStateView( double* base, std::size_t index ) const
+  {
+    if ( index >= variables.size() )
+      throw std::out_of_range( "State variable index out of range." );
+    const auto& v = variables[index];
+    return StateView{ base + v.offset, static_cast< int >( v.size ) };
+  }
+
+  /**
+   * @brief Map a variable inside a state vector to a typed view via `StateMapper` by name.
    *
    * Delegates to `StateMapper<View>::map(base + offset, size, args...)`.
    * The layout must have been finalized before calling this method.
@@ -285,7 +396,32 @@ public:
   }
 
   /**
-   * @brief Const version of @ref getAs.
+   * @brief Map a variable inside a state vector to a typed view via `StateMapper` by index.
+   *
+   * @tparam View   Target view type (must have a matching `StateMapper` specialization).
+   * @tparam Args   Additional constructor arguments forwarded to `StateMapper::map`.
+   * @param base    Pointer to the beginning of the state vector.
+   * @param index   Index of the variable.
+   * @param args    Extra arguments forwarded to `StateMapper::map`.
+   * @return        The mapped view of the requested variable.
+   * @throws std::runtime_error if the layout is not finalized.
+   * @throws std::out_of_range if @p index is invalid.
+   */
+  template < class View, class... Args >
+  View getAs( double* base, std::size_t index, Args&&... args ) const
+  {
+    if ( !finalized )
+      throw std::runtime_error( "State layout not finalized." );
+
+    if ( index >= variables.size() )
+      throw std::out_of_range( "State variable index out of range." );
+
+    const auto& v = variables[index];
+    return StateMapper< View >::map( base + v.offset, v.size, std::forward< Args >( args )... );
+  }
+
+  /**
+   * @brief Const version of @ref getAs by name.
    * @tparam View   Target view type (must have a matching `StateMapper` specialization).
    * @tparam Args   Additional constructor arguments forwarded to `StateMapper::map`.
    * @param base    Pointer to the beginning of the state vector.
@@ -301,6 +437,22 @@ public:
       throw std::runtime_error( "State layout not finalized." );
 
     const auto& v = getInfo( name );
+    return StateMapper< View >::map( base + v.offset, v.size, std::forward< Args >( args )... );
+  }
+
+  /**
+   * @brief Const version of index-based @ref getAs.
+   */
+  template < class View, class... Args >
+  View getAs( const double* base, std::size_t index, Args&&... args ) const
+  {
+    if ( !finalized )
+      throw std::runtime_error( "State layout not finalized." );
+
+    if ( index >= variables.size() )
+      throw std::out_of_range( "State variable index out of range." );
+
+    const auto& v = variables[index];
     return StateMapper< View >::map( base + v.offset, v.size, std::forward< Args >( args )... );
   }
 
@@ -322,4 +474,62 @@ private:
 
   bool finalized = false;
   int  total_sz  = 0;
+};
+
+template < std::size_t I, typename Tuple >
+struct OffsetOf;
+
+template < typename Tuple >
+struct OffsetOf< 0, Tuple > {
+  static constexpr std::size_t value = 0;
+};
+
+template < std::size_t I, typename Tuple >
+struct OffsetOf {
+  static constexpr std::size_t value = std::tuple_element_t< I - 1, Tuple >::size + OffsetOf< I - 1, Tuple >::value;
+};
+
+template < typename... Vars >
+class CompileTimeStateLayout {
+  using tuple_type                      = std::tuple< Vars... >;
+  static constexpr std::size_t num_vars = sizeof...( Vars );
+
+public:
+  static constexpr std::size_t total_size = OffsetOf< num_vars, tuple_type >::value;
+
+  template < std::size_t I >
+  static constexpr std::size_t offset = OffsetOf< I, tuple_type >::value;
+
+  // Registers all variables to the dynamic layout for visualization/solvers
+  static void registerLayout( MarmotStateLayoutDynamic& dynamicLayout )
+  {
+    auto reg = [&]< std::size_t... Is >( std::index_sequence< Is... > ) {
+      ( dynamicLayout.add( std::tuple_element_t< Is, tuple_type >::name, std::tuple_element_t< Is, tuple_type >::size ),
+        ... );
+    };
+    reg( std::make_index_sequence< num_vars >{} );
+    dynamicLayout.finalize();
+  }
+
+  // High-performance typed compile-time getter for non-const base pointer
+  template < std::size_t I, typename BaseType, typename = std::enable_if_t< !std::is_const_v< BaseType > > >
+  static decltype( auto ) get( BaseType* base )
+  {
+    using Var = std::tuple_element_t< I, tuple_type >;
+    return StateMapper< typename Var::view_type >::map( base + offset< I >, Var::size );
+  }
+
+  // High-performance typed compile-time getter for const base pointer
+  template < std::size_t I >
+  static decltype( auto ) get( const double* base )
+  {
+    using Var       = std::tuple_element_t< I, tuple_type >;
+    using view_type = typename Var::view_type;
+    if constexpr ( std::is_same_v< view_type, double& > ) {
+      return StateMapper< const double& >::map( base + offset< I >, Var::size );
+    }
+    else {
+      return StateMapper< view_type >::map( const_cast< double* >( base ) + offset< I >, Var::size );
+    }
+  }
 };

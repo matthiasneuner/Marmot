@@ -24,8 +24,7 @@ namespace Marmot::Materials {
                                 const int     materialLabel )
     : MarmotMaterialHypoElastic( materialProperties, nMaterialProperties, materialLabel )
   {
-    stateLayout.add( "kappa", 1 );
-    stateLayout.finalize();
+    Layout::registerLayout( stateLayout );
   }
 
   void VonMisesModel::computeStress( state3D&        state,
@@ -58,7 +57,7 @@ namespace Marmot::Materials {
     }
 
     // get current hardening variable
-    double& kappa = stateLayout.getAs< double& >( state.stateVars, "kappa" );
+    double& kappa = Layout::get< 0 >( state.stateVars );
 
     // isotropic hardening law
     auto fy = [&]( double kappa_ ) {
@@ -157,7 +156,7 @@ namespace Marmot::Materials {
     }
 
     // get current hardening variable
-    double& kappa = stateLayout.getAs< double& >( state.stateVars, "kappa" );
+    double& kappa = Layout::get< 0 >( state.stateVars );
 
     // isotropic hardening law
     auto fy = [&]( double kappa_ ) {

@@ -32,6 +32,8 @@ namespace Marmot::Materials {
   class VonMisesModel : public MarmotMaterialHypoElastic {
 
   public:
+    using Layout = CompileTimeStateLayout< StateVar< double&, 1, "kappa" > >;
+
     VonMisesModel( const double* materialProperties, const int nMaterialProperties, const int materialLabel );
 
     void computeStress( state3D&                state,

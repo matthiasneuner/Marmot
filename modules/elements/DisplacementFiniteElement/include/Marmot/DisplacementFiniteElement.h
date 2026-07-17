@@ -382,12 +382,17 @@ namespace Marmot::Elements {
   {
     using namespace std;
 
-    static vector< vector< string > > nodeFields;
-    if ( nodeFields.empty() )
+    // C++11 guarantees thread-safe initialization of function-local statics with an
+    // initializer; the previous "declare empty, then fill on first use" pattern raced
+    // on the fill under real concurrency (free-threading).
+    static const vector< vector< string > > nodeFields = [] {
+      vector< vector< string > > nodeFields;
       for ( int i = 0; i < nNodes; i++ ) {
         nodeFields.push_back( vector< string >() );
         nodeFields[i].push_back( "displacement" );
       }
+      return nodeFields;
+    }();
 
     return nodeFields;
   }
@@ -395,10 +400,12 @@ namespace Marmot::Elements {
   template < int nDim, int nNodes >
   std::vector< int > DisplacementFiniteElement< nDim, nNodes >::getDofIndicesPermutationPattern()
   {
-    static std::vector< int > permutationPattern;
-    if ( permutationPattern.empty() )
+    static const std::vector< int > permutationPattern = [] {
+      std::vector< int > permutationPattern;
       for ( int i = 0; i < nNodes * nDim; i++ )
         permutationPattern.push_back( i );
+      return permutationPattern;
+    }();
 
     return permutationPattern;
   }

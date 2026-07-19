@@ -102,18 +102,26 @@ find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 message("--> found Eigen: ${EIGEN3_INCLUDE_DIR}")
 
 ## find autodiff library (https://autodiff.github.io/)
-find_path(AUTODIFF_INCLUDE_DIR autodiff)
-if(NOT AUTODIFF_INCLUDE_DIR)
-    message(FATAL_ERROR "autodiff include directory not found")
-endif()
-message("--> found autodiff: ${AUTODIFF_INCLUDE_DIR}")
+## autodiff ships a CMake package providing the autodiff::autodiff imported target.
+find_package(autodiff REQUIRED)
+message("--> found autodiff: ${autodiff_DIR}")
 
 ## find Fastor library (https://github.com/romeric/Fastor)
-find_path(FASTOR_INCLUDE_DIR Fastor)
-if(NOT FASTOR_INCLUDE_DIR)
-    message(FATAL_ERROR "Fastor include directory not found")
+## Prefer Fastor's CMake package (Fastor::Fastor imported target); fall back to a
+## plain header search for copies of Fastor installed without its package files.
+find_package(Fastor QUIET)
+if(TARGET Fastor::Fastor)
+    message("--> found Fastor: ${Fastor_DIR}")
+else()
+    find_path(FASTOR_INCLUDE_DIR Fastor)
+    if(NOT FASTOR_INCLUDE_DIR)
+        message(FATAL_ERROR "Fastor not found (neither as a CMake package nor as plain headers)")
+    endif()
+    add_library(Fastor::Fastor INTERFACE IMPORTED)
+    set_target_properties(Fastor::Fastor PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${FASTOR_INCLUDE_DIR}")
+    message("--> found Fastor headers: ${FASTOR_INCLUDE_DIR}")
 endif()
-message("--> found Fastor: ${FASTOR_INCLUDE_DIR}")
 
 # Testing: include(CTest) provides the standard BUILD_TESTING option (default ON)
 # and calls enable_testing() when it is enabled. Configure with -DBUILD_TESTING=OFF
@@ -127,6 +135,27 @@ function(add_marmot_test test_name test_source)
   add_executable(${test_name} ${test_source})
   target_link_libraries(${test_name} PRIVATE ${PROJECT_NAME})
   add_test(NAME ${test_name} COMMAND ${test_name} WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+endfunction()
+
+# marmot_module_requires: check that every listed dependency of <module_name> is
+# among the discovered INSTALLED_MODULES, so a module can skip itself gracefully
+# instead of failing at link time. Emits a warning for each missing dependency
+# and sets <result_var> to TRUE/FALSE in the calling scope.
+#
+# Usage (from a module.cmake):
+#   marmot_module_requires(_deps_ok MyModule MarmotMechanicsCore MarmotCosseratCore)
+#   if(_deps_ok)
+#     # register include dir and sources
+#   endif()
+function(marmot_module_requires result_var module_name)
+  set(_ok TRUE)
+  foreach(_dep IN LISTS ARGN)
+    if(NOT _dep IN_LIST INSTALLED_MODULES)
+      message(WARNING "Module ${module_name} will NOT be built: required module '${_dep}' is not enabled.")
+      set(_ok FALSE)
+    endif()
+  endforeach()
+  set(${result_var} ${_ok} PARENT_SCOPE)
 endfunction()
 
 set(MODULES_DIR ${CMAKE_SOURCE_DIR}/modules)
@@ -227,18 +256,19 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 #   INSTALL_INTERFACE – the single installed include root used by find_package consumers.
 # Making these PUBLIC means test executables that link against ${PROJECT_NAME} receive
 # the include paths transitively without any explicit target_include_directories call.
+# Dependency include paths come transitively from the linked imported targets.
 target_include_directories(${PROJECT_NAME}
     PUBLIC
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-        $<BUILD_INTERFACE:${AUTODIFF_INCLUDE_DIR}>
-        $<BUILD_INTERFACE:${FASTOR_INCLUDE_DIR}>
 )
 foreach(_inc_dir IN LISTS INSTALLED_MODULE_INCLUDE_DIRS)
     target_include_directories(${PROJECT_NAME}
         PUBLIC $<BUILD_INTERFACE:${_inc_dir}>)
 endforeach()
 
-target_link_libraries(${PROJECT_NAME} PUBLIC Eigen3::Eigen)
+# PUBLIC: the installed Marmot headers include Eigen, autodiff, and Fastor headers,
+# so consumers need these interface targets too (resolved via MarmotConfig.cmake).
+target_link_libraries(${PROJECT_NAME} PUBLIC Eigen3::Eigen autodiff::autodiff Fastor::Fastor)
 
 if(SHARED_LIBRARIES)
     message("+------------------------------------------------------------------------------+")

@@ -7,6 +7,29 @@ using namespace Marmot;
 using namespace Marmot::Elements;
 using namespace Marmot::Testing;
 
+void testDefaultNamedPropertyInterface()
+{
+  constexpr int nDim    = 2;
+  constexpr int nNodes  = 4; // Quad4
+  const int     elId    = 1;
+  const auto    intType = FiniteElement::Quadrature::IntegrationTypes::FullIntegration;
+  const auto    secType = DisplacementFiniteElement< nDim, nNodes >::SectionType::PlaneStress;
+
+  auto element = std::make_unique< DisplacementFiniteElement< nDim, nNodes > >( elId, intType, secType );
+
+  // callers (e.g. the EdelweissFE Cython wrapper) reach the named-property interface
+  // through the MarmotElement base pointer, so exercise it the same way here
+  MarmotElement* base = element.get();
+
+  // an element that does not override the named-property interface must expose
+  // no named properties, and assigning one must be a silent no-op rather than throw
+  throwExceptionOnFailure( base->getPropertyNames().empty(),
+                           "Default getPropertyNames() must be empty for an element without named properties." );
+
+  const double dummyValue = 1.0;
+  base->assignProperty( "nonexistent property", &dummyValue );
+}
+
 void testInstantiationAndBasicProperties()
 {
   constexpr int nDim    = 2;
@@ -227,7 +250,8 @@ void testInitializeYourselfAndShapeFunctions()
 
 int main()
 {
-  auto tests = std::vector< std::function< void() > >{ testInstantiationAndBasicProperties,
+  auto tests = std::vector< std::function< void() > >{ testDefaultNamedPropertyInterface,
+                                                       testInstantiationAndBasicProperties,
                                                        testStiffnessMatrixCalculationPlaneStress,
                                                        testInitializeYourselfAndShapeFunctions };
 

@@ -22,12 +22,19 @@ void testDefaultNamedPropertyInterface()
   MarmotElement* base = element.get();
 
   // an element that does not override the named-property interface must expose
-  // no named properties, and assigning one must be a silent no-op rather than throw
+  // no named properties, and assigning an unrecognized one must throw
   throwExceptionOnFailure( base->getPropertyNames().empty(),
                            "Default getPropertyNames() must be empty for an element without named properties." );
 
   const double dummyValue = 1.0;
-  base->assignProperty( "nonexistent property", &dummyValue );
+  bool         threw      = false;
+  try {
+    base->assignProperty( "nonexistent property", &dummyValue );
+  }
+  catch ( const std::invalid_argument& ) {
+    threw = true;
+  }
+  throwExceptionOnFailure( threw, "Default assignProperty(name, ...) must throw for an unrecognized named property." );
 }
 
 void testInstantiationAndBasicProperties()

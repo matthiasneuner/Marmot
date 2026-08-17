@@ -382,9 +382,6 @@ namespace Marmot::Elements {
   {
     using namespace std;
 
-    // C++11 guarantees thread-safe initialization of function-local statics with an
-    // initializer; the previous "declare empty, then fill on first use" pattern raced
-    // on the fill under real concurrency (free-threading).
     static const vector< vector< string > > nodeFields = [] {
       vector< vector< string > > nodeFields;
       for ( int i = 0; i < nNodes; i++ ) {

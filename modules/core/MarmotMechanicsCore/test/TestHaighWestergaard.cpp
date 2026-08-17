@@ -93,9 +93,6 @@ void testHaighWestergaardDual()
 
   throwExceptionOnFailure( checkIfEqual( hwoutput.xi, hwref.xi, 1e-13 ),
                            MakeString() << __PRETTY_FUNCTION__ << " test 1  failed: error in xi" );
-  // rho's derivative (not just its value) is checked here too: before the J2~0 guard in
-  // haighWestergaard(), sqrt()'s singular derivative at J2=0 made this a NaN and this check had
-  // to be disabled.
   throwExceptionOnFailure( checkIfEqual( hwoutput.rho, hwref.rho ),
                            MakeString() << __PRETTY_FUNCTION__ << " test 1  failed: error in rho" );
   throwExceptionOnFailure( checkIfEqual( hwoutput.theta, hwref.theta ),

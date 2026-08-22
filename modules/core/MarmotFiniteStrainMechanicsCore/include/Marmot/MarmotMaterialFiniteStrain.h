@@ -373,6 +373,16 @@ public:
   }
 
   /**
+   * @brief Set the characteristic element length at the considered evaluation point.
+   *
+   * Needed by materials whose softening behaviour is regularised via a mesh-adjusted softening modulus.
+   * The default implementation does nothing, so materials that do not depend on a length are unaffected.
+   *
+   * @param[in] length Characteristic element length.
+   */
+  virtual void setCharacteristicElementLength( double length ) {}
+
+  /**
    * @brief Get the mass density of the material.
    * @param[in] stateVars Pointer to the state variable array
    * @return Mass density

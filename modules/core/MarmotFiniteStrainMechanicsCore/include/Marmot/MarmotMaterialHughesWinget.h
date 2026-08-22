@@ -159,6 +159,25 @@ namespace Marmot::Materials {
     }
 
     /**
+     * @brief Resolve a state variable by name, falling back to the wrapped material.
+     *
+     * Without this, the wrapped material's own state -- CDP's @c omega, a plasticity model's
+     * hardening variable -- would be unreachable through the wrapper, since the wrapper's layout only
+     * knows its own three slots.
+     *
+     * @param[in] stateName Name of the state variable.
+     * @param[in] stateVars Pointer to the state variable array of this wrapper.
+     * @return A view of the requested state variable.
+     */
+    StateView getStateView( const std::string& stateName, double* stateVars ) const override
+    {
+      if ( stateName == deformationGradientSlot || stateName == stressSlot || stateName == baseMaterialSlot )
+        return this->stateLayout.getStateView( stateVars, stateName );
+
+      return baseMaterial->getStateView( stateName, this->stateLayout.getPtr( stateVars, baseMaterialSlot ) );
+    }
+
+    /**
      * @brief Mass density of the wrapped material.
      * @param[in] stateVars Pointer to the state variable array of this wrapper.
      * @return Mass density.

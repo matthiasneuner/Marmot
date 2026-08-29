@@ -33,6 +33,7 @@
 #include "Marmot/MarmotGeometryElement.h"
 #include "Marmot/MarmotGeostaticStress.h"
 #include "Marmot/MarmotJournal.h"
+#include "Marmot/MarmotMassLumping.h"
 #include "Marmot/MarmotMaterialFiniteStrain.h"
 #include "Marmot/MarmotMaterialFiniteStrainFactory.h"
 #include "Marmot/MarmotStateVarVectorManager.h"
@@ -116,10 +117,10 @@ namespace Marmot::Elements {
       const XiSized xi;     /**< Local coordinates of the quadrature point */
       const double  weight; /**< Weight of the quadrature point */
 
-      dNdXiSized dNdX;      /**< Shape function derivatives w.r.t. material (undeformed) coordinates evaluated at the
-                               quadrature point */
-      double detJ;          /**< Determinant of the undeformed Jacobian */
-      double J0xW;          /**< Determinant of the undeformed Jacobian times quadrature weight */
+      dNdXiSized dNdX; /**< Shape function derivatives w.r.t. material (undeformed) coordinates evaluated at the
+                          quadrature point */
+      double detJ;     /**< Determinant of the undeformed Jacobian */
+      double J0xW;     /**< Determinant of the undeformed Jacobian times quadrature weight */
 
       /// @class QPStateVarManager
       /// @brief Manager class for handling state variables at the quadrature point
@@ -914,16 +915,27 @@ namespace Marmot::Elements {
     Eigen::Map< RhsSized > LMM( M );
     LMM.setZero();
 
-    // 2^nDim. std::pow is not constexpr in the standard (libstdc++ offers it as an
-    // extension, libc++ does not), so compute it with a shift to stay portable.
-    constexpr int nNodesLinear  = 1 << nDim;
-    auto          linGeometryEl = MarmotGeometryElement< nDim, nNodesLinear >();
+    /* Row sums of the consistent mass matrix, from this element's own shape functions and from the
+     * linear (corner-node) shape functions of the same element. Density-free: the blend weight and
+     * the mass distribution are properties of the geometry, and computing them in one place is what
+     * keeps computeLumpedInertia and the critical time step consistent with each other.
+     */
+    constexpr int   nNodesLinear     = 1 << nDim;
+    auto            linGeometryEl    = MarmotGeometryElement< nDim, nNodesLinear >();
+    Eigen::VectorXd rowSumsHighOrder = Eigen::VectorXd::Zero( nNodes );
+    Eigen::VectorXd rowSumsLinear    = Eigen::VectorXd::Zero( nNodesLinear );
+    for ( const auto& qp : qps ) {
+      rowSumsHighOrder += Eigen::VectorXd( this->N( qp.xi ) ) * qp.J0xW;
+      rowSumsLinear += Eigen::VectorXd( linGeometryEl.N( qp.xi ) ) * qp.J0xW;
+    }
+    const double weight = FiniteElement::MassLumping::manifoldBlendWeight( rowSumsHighOrder, rowSumsLinear );
+
     for ( const auto& qp : qps ) {
       const auto N_    = this->N( qp.xi );
       const auto N_lin = linGeometryEl.N( qp.xi );
 
-      Eigen::VectorXd N_weighted = 0.5 * ( N_ );
-      N_weighted.head( nNodesLinear ) += 0.5 * N_lin;
+      Eigen::VectorXd N_weighted = weight * ( N_ );
+      N_weighted.head( nNodesLinear ) += ( 1.0 - weight ) * N_lin;
 
       const double    rho = qp.material->getDensity( qp.managedStateVars->materialStateVars.data() );
       Eigen::VectorXd m_  = N_weighted * qp.J0xW * rho;
@@ -945,6 +957,23 @@ namespace Marmot::Elements {
 
     const static auto I = Tensor< double, nDim, nDim >(
       ( Eigen::Matrix< double, nDim, nDim >() << Eigen::Matrix< double, nDim, nDim >::Identity() ).finished().data() );
+
+    /* Row sums of the consistent mass matrix, from this element's own shape functions and from the
+     * linear (corner-node) shape functions of the same element. Shared with computeLumpedInertia via
+     * MarmotMassLumping so the time step cannot be derived from a different mass distribution than
+     * the one actually assembled.
+     */
+    constexpr int   nNodesLinear     = 1 << nDim;
+    auto            linGeometryEl    = MarmotGeometryElement< nDim, nNodesLinear >();
+    Eigen::VectorXd rowSumsHighOrder = Eigen::VectorXd::Zero( nNodes );
+    Eigen::VectorXd rowSumsLinear    = Eigen::VectorXd::Zero( nNodesLinear );
+    for ( const auto& qp : qps ) {
+      rowSumsHighOrder += Eigen::VectorXd( this->N( qp.xi ) ) * qp.J0xW;
+      rowSumsLinear += Eigen::VectorXd( linGeometryEl.N( qp.xi ) ) * qp.J0xW;
+    }
+    const double weight = FiniteElement::MassLumping::manifoldBlendWeight( rowSumsHighOrder, rowSumsLinear );
+    const double lumpedMassTimeStepFactor = FiniteElement::MassLumping::timeStepFactorFromMassDistribution(
+      FiniteElement::MassLumping::manifoldMassFractions( rowSumsHighOrder, rowSumsLinear, weight ) );
 
     criticalTimeStep = std::numeric_limits< double >::max();
     for ( const auto& qp : qps ) {
@@ -973,7 +1002,7 @@ namespace Marmot::Elements {
       if ( c <= 0.0 ) {
         throw std::runtime_error( "Non-positive wave speed encountered in computeCriticalTimeStepForExplicitDynamics" );
       }
-      const double dt = characteristicElementLength / c;
+      const double dt = lumpedMassTimeStepFactor * characteristicElementLength / c;
       if ( dt < criticalTimeStep )
         criticalTimeStep = dt;
     }

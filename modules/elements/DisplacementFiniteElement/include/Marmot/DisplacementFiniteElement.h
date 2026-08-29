@@ -30,6 +30,7 @@
 #include "Marmot/MarmotGeometryElement.h"
 #include "Marmot/MarmotJournal.h"
 #include "Marmot/MarmotLowerDimensionalStress.h"
+#include "Marmot/MarmotMassLumping.h"
 #include "Marmot/MarmotMaterialHypoElastic.h"
 #include "Marmot/MarmotMaterialHypoElasticFactory.h"
 #include "Marmot/MarmotMath.h"
@@ -840,42 +841,33 @@ namespace Marmot::Elements {
     Map< RhsSized > LMM( M );
     LMM.setZero();
 
-    /* Special (HRZ) lumping, after Hinton, Rock & Zienkiewicz: distribute the element's total mass
-     * in proportion to the diagonal of its consistent mass matrix,
-     *
-     *     M_i = (integral rho dV) * C_ii / (sum_j C_jj),    C_ii = integral N_i^2 rho dV,
-     *
-     * which conserves the total mass exactly and is positive by construction -- every factor is an
-     * integral of a square.
-     *
-     * Plain row-sum lumping (the sum of a consistent-mass row, i.e. the integral of N_i) does not
-     * have that property for a serendipity element, whose corner shape functions go negative, and
-     * for a 20-node hexahedron it is exactly, silently wrong: under the 2x2x2 rule the row sums are
-     * -detJ at every corner node and +4/3 detJ at every midside node, so the previous
-     * implementation's 0.5*(quadratic) + 0.5*(linear) blend on the corner block mapped -1 to
-     * -0.5 + 0.5 = ZERO. The element total came out right, which is why nothing downstream noticed,
-     * but every corner node of every 20-node element carried no mass whatsoever -- and in floating
-     * point it landed a few 1e-17 to either side of zero rather than exactly on it, so a solver's
-     * "is any mass zero" guard passed and the inverse mass came out around 1e17.
+    /* Row sums of the consistent mass matrix, from this element's own shape functions and from the
+     * linear (corner-node) shape functions of the same element. Density-free: the blend weight and
+     * the mass distribution are properties of the geometry, and computing them in one place is what
+     * keeps computeLumpedInertia and the critical time step consistent with each other.
      */
-    VectorXd diagU     = VectorXd::Zero( nNodes );
-    double   totalMass = 0.0;
+    constexpr int   nNodesLinear     = ( 1 << nDim );
+    auto            linGeometryEl    = MarmotGeometryElement< nDim, nNodesLinear >();
+    Eigen::VectorXd rowSumsHighOrder = Eigen::VectorXd::Zero( nNodes );
+    Eigen::VectorXd rowSumsLinear    = Eigen::VectorXd::Zero( nNodesLinear );
+    for ( const auto& qp : qps ) {
+      rowSumsHighOrder += VectorXd( this->N( qp.xi ) ) * qp.J0xW;
+      rowSumsLinear += VectorXd( linGeometryEl.N( qp.xi ) ) * qp.J0xW;
+    }
+    const double weight = FiniteElement::MassLumping::manifoldBlendWeight( rowSumsHighOrder, rowSumsLinear );
 
     for ( const auto& qp : qps ) {
-      const auto   N_  = this->N( qp.xi );
+      const auto N_    = this->N( qp.xi );
+      const auto N_lin = linGeometryEl.N( qp.xi );
+
+      VectorXd N_weighted = weight * ( N_ );
+      N_weighted.head( nNodesLinear ) += ( 1.0 - weight ) * N_lin;
+
       const double rho = qp.material->getDensity( qp.managedStateVars->materialStateVars.data() );
-
-      totalMass += qp.J0xW * rho;
-      for ( int i = 0; i < nNodes; i++ )
-        diagU( i ) += N_( i ) * N_( i ) * qp.J0xW * rho;
-    }
-
-    const double sumDiagU = diagU.sum();
-    if ( sumDiagU > 0.0 ) {
+      VectorXd     m_  = N_weighted * qp.J0xW * rho;
       for ( int i = 0; i < nNodes; i++ ) {
-        const double m_i = totalMass * diagU( i ) / sumDiagU;
         for ( int d = 0; d < nDim; d++ )
-          LMM( i * nDim + d ) = m_i;
+          LMM( i * nDim + d ) += m_( i );
       }
     }
   }
@@ -885,33 +877,22 @@ namespace Marmot::Elements {
                                                                                               const double* QTotal )
   {
 
-    /* The estimate below is l / c, which assumes the element's mass is spread UNIFORMLY over its
-     * nodes. Special (HRZ) lumping does not do that. On a 20-node hexahedron under the 2x2x2 rule a
-     * corner node receives 0.025 of the element mass against 0.0667 for a midside node -- exactly
-     * half of the uniform 1/20 share. A lighter node oscillates faster, omega = sqrt(k/m), so the
-     * stable increment is sqrt(m_min / m_uniform) times the uniform-mass estimate: 0.7071 for a
-     * hexa20.
-     *
-     * Ignoring it puts the default courant number of 0.8 ABOVE the true limit for every 20-node
-     * element. That does not present as a marginally noisy run but as violent exponential
-     * divergence -- and only where the material provides no damping, so a 20-node run on a
-     * viscously regularised material can sit just above the limit and look fine. That is worse than
-     * a clean failure, because it makes the fault look model-specific.
-     *
-     * For a linear element on a regular mesh the fractions are uniform and this factor is exactly 1,
-     * so nothing changes there. For a distorted element it comes out slightly below 1, which is
-     * right: a distorted element does have a tighter limit than its volume alone suggests.
+    /* Row sums of the consistent mass matrix, from this element's own shape functions and from the
+     * linear (corner-node) shape functions of the same element. Density-free: the blend weight and
+     * the mass distribution are properties of the geometry, and computing them in one place is what
+     * keeps computeLumpedInertia and the critical time step consistent with each other.
      */
-    VectorXd massFractions = VectorXd::Zero( nNodes );
+    constexpr int   nNodesLinear     = ( 1 << nDim );
+    auto            linGeometryEl    = MarmotGeometryElement< nDim, nNodesLinear >();
+    Eigen::VectorXd rowSumsHighOrder = Eigen::VectorXd::Zero( nNodes );
+    Eigen::VectorXd rowSumsLinear    = Eigen::VectorXd::Zero( nNodesLinear );
     for ( const auto& qp : qps ) {
-      const auto N_ = this->N( qp.xi );
-      for ( int i = 0; i < nNodes; i++ )
-        massFractions( i ) += N_( i ) * N_( i ) * qp.J0xW;
+      rowSumsHighOrder += VectorXd( this->N( qp.xi ) ) * qp.J0xW;
+      rowSumsLinear += VectorXd( linGeometryEl.N( qp.xi ) ) * qp.J0xW;
     }
-    const double totalMassFraction        = massFractions.sum();
-    const double lumpedMassTimeStepFactor = totalMassFraction > 0.0
-                                              ? std::sqrt( nNodes * massFractions.minCoeff() / totalMassFraction )
-                                              : 1.0;
+    const double weight = FiniteElement::MassLumping::manifoldBlendWeight( rowSumsHighOrder, rowSumsLinear );
+    const double lumpedMassTimeStepFactor = FiniteElement::MassLumping::timeStepFactorFromMassDistribution(
+      FiniteElement::MassLumping::manifoldMassFractions( rowSumsHighOrder, rowSumsLinear, weight ) );
 
     criticalTimeStep = std::numeric_limits< double >::max();
     for ( const auto& qp : qps ) {

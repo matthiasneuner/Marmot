@@ -23,6 +23,7 @@
  * ---------------------------------------------------------------------
  */
 
+#include "Marmot/MarmotConstants.h"
 #include "Marmot/MarmotFastorTensorBasics.h"
 #include "Marmot/MarmotMaterialHughesWinget.h"
 #include "Marmot/MarmotMaterialHypoElastic.h"
@@ -274,7 +275,7 @@ void testRigidRotationIsExact()
 
       const double accumulatedBefore = state.back();
 
-      const double    theta = angleDeg * M_PI / 180.0;
+      const double    theta = angleDeg * Constants::Pi / 180.0;
       const Tensor33d Q     = rotationTensor( Eigen::Vector3d( axes( a, 0 ),
                                                            axes( a, 1 ),
                                                            std::sqrt( std::max( 0.0,

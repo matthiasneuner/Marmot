@@ -19,14 +19,14 @@ Usage
 The wrapper is registered per material under the name of the wrapped model, suffixed with
 ``/HUGHES-WINGET``. In an EdelweissFE input file::
 
-  *material, name=VonMises/Hughes-Winget, id=myMaterial
+  *material, name=VONMISES/HUGHES-WINGET, id=myMaterial
   210000, 0.3, 550, 1000, 200, 1400
 
 and in EdelweissMeshfree:
 
 .. code-block:: python
 
-  material = {"material": "VonMises/Hughes-Winget", "properties": np.array([...])}
+  material = {"material": "VONMISES/HUGHES-WINGET", "properties": np.array([...])}
 
 All material properties are forwarded to the wrapped model unchanged; the wrapper consumes none of
 them.

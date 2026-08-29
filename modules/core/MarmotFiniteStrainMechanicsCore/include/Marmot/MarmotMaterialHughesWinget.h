@@ -34,6 +34,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <type_traits>
 #include <vector>
 
 namespace Marmot::Materials {
@@ -464,7 +465,13 @@ namespace Marmot::Materials {
       auto evaluate = [&]( const Tensor33d& F ) -> Tensor33d {
         std::memcpy( scratch.data(), stateOld.data(), nTotal * sizeof( double ) );
         ConstitutiveResponse< 3 > perturbed;
-        perturbed.stateVars = scratch.data();
+        // Seed from the incoming (accumulated) response rather than the default-constructed zero:
+        // computeStressCore feeds these into the wrapped material's state as its starting energy /
+        // dissipation, and a material whose response depends on that history (not merely writing to
+        // it) would otherwise be perturbed from a fictitious zero baseline instead of its real one.
+        perturbed.elasticEnergyDensity = response.elasticEnergyDensity;
+        perturbed.dissipation          = response.dissipation;
+        perturbed.stateVars            = scratch.data();
         computeStressCore( perturbed, unused, Deformation< 3 >{ F }, timeIncrement, false );
         return perturbed.tau;
       };

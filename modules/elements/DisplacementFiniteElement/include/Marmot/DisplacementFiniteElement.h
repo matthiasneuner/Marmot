@@ -840,20 +840,42 @@ namespace Marmot::Elements {
     Map< RhsSized > LMM( M );
     LMM.setZero();
 
-    constexpr int nNodesLinear  = ( 1 << nDim );
-    auto          linGeometryEl = MarmotGeometryElement< nDim, nNodesLinear >();
+    /* Special (HRZ) lumping, after Hinton, Rock & Zienkiewicz: distribute the element's total mass
+     * in proportion to the diagonal of its consistent mass matrix,
+     *
+     *     M_i = (integral rho dV) * C_ii / (sum_j C_jj),    C_ii = integral N_i^2 rho dV,
+     *
+     * which conserves the total mass exactly and is positive by construction -- every factor is an
+     * integral of a square.
+     *
+     * Plain row-sum lumping (the sum of a consistent-mass row, i.e. the integral of N_i) does not
+     * have that property for a serendipity element, whose corner shape functions go negative, and
+     * for a 20-node hexahedron it is exactly, silently wrong: under the 2x2x2 rule the row sums are
+     * -detJ at every corner node and +4/3 detJ at every midside node, so the previous
+     * implementation's 0.5*(quadratic) + 0.5*(linear) blend on the corner block mapped -1 to
+     * -0.5 + 0.5 = ZERO. The element total came out right, which is why nothing downstream noticed,
+     * but every corner node of every 20-node element carried no mass whatsoever -- and in floating
+     * point it landed a few 1e-17 to either side of zero rather than exactly on it, so a solver's
+     * "is any mass zero" guard passed and the inverse mass came out around 1e17.
+     */
+    VectorXd diagU     = VectorXd::Zero( nNodes );
+    double   totalMass = 0.0;
+
     for ( const auto& qp : qps ) {
-      const auto N_    = this->N( qp.xi );
-      const auto N_lin = linGeometryEl.N( qp.xi );
-
-      VectorXd N_weighted = 0.5 * ( N_ );
-      N_weighted.head( nNodesLinear ) += 0.5 * N_lin;
-
+      const auto   N_  = this->N( qp.xi );
       const double rho = qp.material->getDensity( qp.managedStateVars->materialStateVars.data() );
-      VectorXd     m_  = N_weighted * qp.J0xW * rho;
+
+      totalMass += qp.J0xW * rho;
+      for ( int i = 0; i < nNodes; i++ )
+        diagU( i ) += N_( i ) * N_( i ) * qp.J0xW * rho;
+    }
+
+    const double sumDiagU = diagU.sum();
+    if ( sumDiagU > 0.0 ) {
       for ( int i = 0; i < nNodes; i++ ) {
+        const double m_i = totalMass * diagU( i ) / sumDiagU;
         for ( int d = 0; d < nDim; d++ )
-          LMM( i * nDim + d ) += m_( i );
+          LMM( i * nDim + d ) = m_i;
       }
     }
   }

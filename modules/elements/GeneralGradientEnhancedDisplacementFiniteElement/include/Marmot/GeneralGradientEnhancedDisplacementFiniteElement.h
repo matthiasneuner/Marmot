@@ -863,39 +863,76 @@ namespace Marmot::Elements {
     Map< RhsSized > LMM( M );
     LMM.setZero();
 
+    /* Special (HRZ) lumping, after Hinton, Rock & Zienkiewicz: distribute the element's total mass
+     * in proportion to the diagonal of its consistent mass matrix,
+     *
+     *     M_i = (integral rho dV) * C_ii / (sum_j C_jj),    C_ii = integral N_i^2 rho dV,
+     *
+     * which conserves the total mass exactly and is positive by construction -- every factor is an
+     * integral of a square.
+     *
+     * Plain row-sum lumping (the sum of a consistent-mass row, i.e. the integral of N_i) does not
+     * have that property for a serendipity element, whose corner shape functions go negative, and
+     * for a 20-node hexahedron it is exactly, silently wrong: under the 2x2x2 rule the row sums are
+     * -detJ at every corner node and +4/3 detJ at every midside node, so the previous
+     * implementation's 0.5*(quadratic) + 0.5*(linear) blend on the corner block mapped -1 to
+     * -0.5 + 0.5 = ZERO. The element total came out right, which is why nothing downstream noticed,
+     * but every corner node of every 20-node element carried no mass whatsoever -- and in floating
+     * point it landed a few 1e-17 to either side of zero rather than exactly on it, so a solver's
+     * "is any mass zero" guard passed and the inverse mass came out around 1e17.
+     */
+    /* The nonlocal block is lumped the same way, with the nonlocal viscosity in place of the
+     * density: it is that field's own inertia, and it is what makes an otherwise elliptic
+     * regularisation field integrable by an explicit scheme at all.
+     */
     constexpr int nNodesLinear  = ( 1 << nDim );
     auto          linGeometryEl = MarmotGeometryElement< nDim, nNodesLinear >();
+
+    VectorXd diagU     = VectorXd::Zero( nNodes );
+    double   totalMass = 0.0;
+
+    std::vector< double >   totalNonlocalMass( nNonlocalVariables, 0.0 );
+    std::vector< VectorXd > diagK( nNonlocalVariables, VectorXd::Zero( nNonLocalNodes ) );
+
     for ( const auto& qp : qps ) {
       const auto N_    = localGeometryElement.N( qp.xi );
       const auto N_lin = linGeometryEl.N( qp.xi );
 
-      VectorXd N_weighted = 0.5 * ( N_ );
-      N_weighted.head( nNodesLinear ) += 0.5 * N_lin;
-
-      // when nNodes == nNonlocalNodes
-      VectorXd N_weighted_nonlocal;
-      if ( nNodes != nNonLocalNodes ) {
-        N_weighted_nonlocal = VectorXd::Zero( nNonLocalNodes );
-        N_weighted_nonlocal = N_lin;
-      }
-      else {
-        N_weighted_nonlocal = N_weighted;
-      }
+      // The nonlocal variables live on their own node set, which is the linear (corner) subset
+      // whenever that is smaller than the displacement one.
+      const VectorXd N_nonlocal = ( nNodes != nNonLocalNodes ) ? VectorXd( N_lin ) : VectorXd( N_ );
 
       const double                rho = qp.material->getDensity( qp.managedStateVars->materialStateVars.data() );
       const std::vector< double > eta = qp.material->getNonlocalViscosity(
         qp.managedStateVars->materialStateVars.data() );
-      VectorXd m_ = N_weighted * qp.J0xW * rho;
-      for ( int i = 0; i < nNodes; i++ ) {
-        for ( int d = 0; d < nDim; d++ )
-          LMM( i * nDim + d ) += m_( i );
-      }
+
+      totalMass += qp.J0xW * rho;
+      for ( int i = 0; i < nNodes; i++ )
+        diagU( i ) += N_( i ) * N_( i ) * qp.J0xW * rho;
+
       for ( int n = 0; n < nNonlocalVariables; n++ ) {
-        Eigen::Index idx = n * nNonLocalNodes;
-        VectorXd     mK  = N_weighted_nonlocal * qp.J0xW * eta[n];
+        totalNonlocalMass[n] += qp.J0xW * eta[n];
         for ( int i = 0; i < nNonLocalNodes; i++ )
-          LMM( sizeDoFU + idx + i ) += mK( i );
+          diagK[n]( i ) += N_nonlocal( i ) * N_nonlocal( i ) * qp.J0xW * eta[n];
       }
+    }
+
+    const double sumDiagU = diagU.sum();
+    if ( sumDiagU > 0.0 ) {
+      for ( int i = 0; i < nNodes; i++ ) {
+        const double m_i = totalMass * diagU( i ) / sumDiagU;
+        for ( int d = 0; d < nDim; d++ )
+          LMM( i * nDim + d ) = m_i;
+      }
+    }
+
+    for ( int n = 0; n < nNonlocalVariables; n++ ) {
+      const double sumDiagK = diagK[n].sum();
+      if ( sumDiagK <= 0.0 )
+        continue;
+      const Eigen::Index idx = n * nNonLocalNodes;
+      for ( int i = 0; i < nNonLocalNodes; i++ )
+        LMM( sizeDoFU + idx + i ) = totalNonlocalMass[n] * diagK[n]( i ) / sumDiagK;
     }
   }
 

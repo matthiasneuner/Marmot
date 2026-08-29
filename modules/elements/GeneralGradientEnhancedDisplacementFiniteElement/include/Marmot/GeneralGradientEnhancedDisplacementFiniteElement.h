@@ -942,6 +942,34 @@ namespace Marmot::Elements {
   {
     using response = typename MarmotMaterialGeneralGradientEnhancedHypoElastic< nNonlocalVariables >::response;
 
+    /* The estimate below is l / c, which assumes the element's mass is spread UNIFORMLY over its
+     * nodes. Special (HRZ) lumping does not do that. On a 20-node hexahedron under the 2x2x2 rule a
+     * corner node receives 0.025 of the element mass against 0.0667 for a midside node -- exactly
+     * half of the uniform 1/20 share. A lighter node oscillates faster, omega = sqrt(k/m), so the
+     * stable increment is sqrt(m_min / m_uniform) times the uniform-mass estimate: 0.7071 for a
+     * hexa20.
+     *
+     * Ignoring it puts the default courant number of 0.8 ABOVE the true limit for every 20-node
+     * element. That does not present as a marginally noisy run but as violent exponential
+     * divergence -- and only where the material provides no damping, so a 20-node run on a
+     * viscously regularised material can sit just above the limit and look fine. That is worse than
+     * a clean failure, because it makes the fault look model-specific.
+     *
+     * For a linear element on a regular mesh the fractions are uniform and this factor is exactly 1,
+     * so nothing changes there. For a distorted element it comes out slightly below 1, which is
+     * right: a distorted element does have a tighter limit than its volume alone suggests.
+     */
+    VectorXd massFractions = VectorXd::Zero( nNodes );
+    for ( const auto& qp : qps ) {
+      const auto N_ = localGeometryElement.N( qp.xi );
+      for ( int i = 0; i < nNodes; i++ )
+        massFractions( i ) += N_( i ) * N_( i ) * qp.J0xW;
+    }
+    const double totalMassFraction        = massFractions.sum();
+    const double lumpedMassTimeStepFactor = totalMassFraction > 0.0
+                                              ? std::sqrt( nNodes * massFractions.minCoeff() / totalMassFraction )
+                                              : 1.0;
+
     // TODO: current implementation ignores nonlocal variables
     criticalTimeStep = std::numeric_limits< double >::max();
     for ( const auto& qp : qps ) {
@@ -964,7 +992,7 @@ namespace Marmot::Elements {
       if ( c <= 0.0 )
         throw std::runtime_error( "Material returned non-positive wave speed, cannot compute critical time step" );
       const double& l  = characteristicElementLength;
-      double        dt = l / c;
+      double        dt = lumpedMassTimeStepFactor * l / c;
       if ( dt < criticalTimeStep )
         criticalTimeStep = dt;
     }

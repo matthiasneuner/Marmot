@@ -932,13 +932,23 @@ namespace Marmot::Elements {
     // TODO: current implementation ignores nonlocal variables
     criticalTimeStep = std::numeric_limits< double >::max();
     for ( const auto& qp : qps ) {
-      double characteristicElementLength = 0.0;
-      if constexpr ( nDim == 3 )
-        characteristicElementLength = std::cbrt( 8 * qp.detJ );
-      if constexpr ( nDim == 2 )
-        characteristicElementLength = std::sqrt( 4 * qp.detJ );
-      if constexpr ( nDim == 1 )
-        characteristicElementLength = ( 2 * qp.detJ );
+      /* The characteristic length has to be the element's SMALLEST physical extent, not a
+       * volume-averaged one. cbrt( 8 * detJ ) and its lower-dimensional analogues are volume
+       * based: for a sliver -- thin in one direction but not the others -- the volume stays
+       * moderate while the thin dimension collapses, so they OVERESTIMATE the length and hence
+       * the stable time step. Refining a distorted parent element is precisely how slivers are
+       * produced, so an h-adaptive explicit run integrates its most distorted elements above
+       * their stability limit and diverges thousands of increments later, with nothing in the
+       * log connecting the divergence to the refinement that caused it.
+       *
+       * The Jacobian maps the natural cube [-1,1]^nDim onto the element, so twice its smallest
+       * singular value IS that smallest physical extent. For a well-shaped element this
+       * reproduces the previous expressions exactly -- a cube of side h gives h either way --
+       * so the estimate is tightened only where it was previously wrong.
+       */
+      const JacobianSized J_ = localGeometryElement.Jacobian( localGeometryElement.dNdXi( qp.xi ) );
+      const double        characteristicElementLength = 2.0 *
+                                                 Eigen::JacobiSVD< JacobianSized >( J_ ).singularValues().minCoeff();
       response waveSpeedResponse;
       waveSpeedResponse.stress = qp.managedStateVars->stress;
       waveSpeedResponse.KLocal.setZero();

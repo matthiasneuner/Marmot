@@ -25,9 +25,10 @@
  * ---------------------------------------------------------------------
  */
 #pragma once
-#include "Marmot/MarmotTypedefs.h"
 #include <Eigen/Core>
+#include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace Marmot::FiniteElement::MassLumping {
 

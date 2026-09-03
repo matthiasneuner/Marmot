@@ -365,7 +365,10 @@ namespace Marmot::Elements {
     /**
      * @brief Compute lumped (diagonal) mass matrix using material density.
      * @details Using the manifold based approach according to
-     * Yang et al. (2017) "A rigorous and unified mass lumping scheme for higher-order elements", CMAME.
+     * Yang, Zheng & Sivaselvan (2017) "A rigorous and unified mass lumping scheme for higher-order
+     * elements", CMAME 319, 491-514. The hexa20 weight the derivation below yields is the split
+     * assessed by Duczek & Gravenkamp (2019) "Critical assessment of different mass lumping schemes
+     * for higher order serendipity finite elements", CMAME 350, 836-897.
      * The lumped mass entries use a blended shape function
      * \f$\hat{N} = w\,N + (1-w)\,N_\mathrm{lin}\f$, where \f$N_\mathrm{lin}\f$ is the
      * corresponding linear (corner-node) shape function on the same element.

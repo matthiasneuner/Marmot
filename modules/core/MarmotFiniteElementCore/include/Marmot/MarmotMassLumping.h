@@ -41,11 +41,17 @@ namespace Marmot::FiniteElement::MassLumping {
    *        element, one entry per corner node.
    * @return The blend weight \f$w\f$ to use in \f$\hat{N} = w\,N + (1-w)\,N_\mathrm{lin}\f$.
    *
-   * @details The scheme (manifold-based lumping, Yang et al. (2017), "A rigorous and unified mass
-   * lumping scheme for higher-order elements", CMAME) row-sums a blended shape function
-   * \f$\hat{N} = w N + (1-w) N_\mathrm{lin}\f$. Row-summing \f$N\f$ alone is not positive for a
-   * serendipity element -- its corner shape functions integrate to a negative value -- and blending
-   * in the linear shape functions is what restores positivity.
+   * @details The scheme is manifold-based lumping:
+   *
+   *  - Yang, Y., Zheng, H. & Sivaselvan, M. V. (2017). "A rigorous and unified mass lumping scheme
+   *    for higher-order elements". CMAME 319, 491-514. https://doi.org/10.1016/j.cma.2017.03.011
+   *  - Duczek, S. & Gravenkamp, H. (2019). "Critical assessment of different mass lumping schemes
+   *    for higher order serendipity finite elements". CMAME 350, 836-897.
+   *    https://doi.org/10.1016/j.cma.2019.03.028
+   *
+   * It row-sums a blended shape function \f$\hat{N} = w N + (1-w) N_\mathrm{lin}\f$. Row-summing
+   * \f$N\f$ alone is not positive for a serendipity element -- its corner shape functions integrate
+   * to a negative value -- and blending in the linear shape functions is what restores positivity.
    *
    * The weight cannot be a constant, which is the subtlety this function exists for. A corner node's
    * lumped mass is \f$w S^{N}_i + (1-w) S^{\mathrm{lin}}_i\f$, so with \f$S^{N}_i < 0 < S^{\mathrm{lin}}_i\f$
@@ -63,11 +69,17 @@ namespace Marmot::FiniteElement::MassLumping {
    * out around 1e17.
    *
    * Returned here is \f$w = \min(\tfrac{1}{2}, \tfrac{2}{3} w_\mathrm{max})\f$. The
-   * \f$\tfrac{2}{3}\f$ is a safety fraction chosen here, not a prescription of Yang et al.: it is
-   * the largest simple fraction that still yields \f$w = \tfrac{1}{2}\f$ for quad8 -- the case the
-   * constant was validated on, so nothing changes for any 2D serendipity element -- while giving
-   * \f$w = \tfrac{1}{3}\f$ for hexa20, a third of the way inside the admissible range rather than
-   * on its edge. The cap keeps \f$\tfrac{1}{2}\f$ as the value used wherever it is safe.
+   * \f$\tfrac{2}{3}\f$ is a safety fraction chosen here rather than taken from either reference,
+   * but it is not free-floating: it is the largest simple fraction that still yields
+   * \f$w = \tfrac{1}{2}\f$ for quad8, and the values it produces are the published ones on both
+   * element types where a published value exists --
+   *
+   *  - \f$w = \tfrac{1}{2}\f$ for quad8, the split of Yang et al. (2017),
+   *  - \f$w = \tfrac{1}{3}\f$ for hexa20, the split assessed by Duczek & Gravenkamp (2019),
+   *
+   * so the rule is not merely a way of staying off the positivity boundary; it reproduces the
+   * literature wherever the literature has an answer, and extrapolates in the same spirit where it
+   * does not. The cap keeps \f$\tfrac{1}{2}\f$ as the value used wherever it is safe.
    *
    * An element with no negatively-integrating corner shape function (every linear element, since
    * there \f$N_\mathrm{lin} \equiv N\f$ and the result does not depend on \f$w\f$ at all) is
@@ -125,6 +137,16 @@ namespace Marmot::FiniteElement::MassLumping {
    * remaining nodes but conserves the element total. That is why an incorrect weight leaves the
    * element mass, and hence the model mass, perfectly correct -- and is invisible to any check that
    * looks at totals.
+   *
+   * @note Integrating the blended shape function once, as done here and by the callers, is exactly
+   * equivalent to assembling the blended consistent mass matrix
+   * \f$M = \int \hat{N}^T \hat{N} \rho \,dV\f$ and row-summing that -- the form in which the scheme
+   * is usually written and implemented. Both \f$N\f$ and \f$N_\mathrm{lin}\f$ are partitions of
+   * unity and the blend is convex, so \f$\sum_j \hat{N}_j \equiv 1\f$ and
+   * \f[ \sum_j M_{ij} = \int \hat{N}_i \Big( \sum_j \hat{N}_j \Big) \rho \,dV
+   *                   = \int \hat{N}_i \rho \,dV. \f]
+   * The linear form is therefore not an approximation of the quadratic one; it is the same numbers
+   * at a fraction of the cost, and no consistent mass matrix has to be formed to get them.
    *
    * @note The normalisation is skipped, and the raw blended row sums returned, if their total is
    * not positive. That cannot happen for any element whose geometry is valid, since the total is

@@ -383,7 +383,8 @@ namespace Marmot::Elements {
      * \f$w = \min(\tfrac{1}{2}, \tfrac{2}{3}\,w_\mathrm{max})\f$: exactly \f$\tfrac{1}{2}\f$
      * wherever that is safe -- every 2D serendipity element, and every linear element, where the
      * result does not depend on \f$w\f$ at all -- and \f$\tfrac{1}{3}\f$ for a hexa20. It
-     * reproduces the values a per-element-type special case would give, without needing one, and
+     * reproduces -- analytically, and to rounding in floating point -- the values a
+     * per-element-type special case would give, without needing one, and
      * the critical time step reads its mass distribution from the same helper so the two cannot
      * disagree.
      *

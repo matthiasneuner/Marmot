@@ -62,15 +62,30 @@ namespace Marmot::FiniteElement::MassLumping {
    * rather than on it, so an "is any mass zero" check downstream passes and the inverse mass comes
    * out around 1e17.
    *
-   * Returned here is \f$w = \min(\tfrac{1}{2}, \tfrac{2}{3} w_\mathrm{max})\f$. The \f$\tfrac{2}{3}\f$
-   * reproduces \f$w = \tfrac{1}{2}\f$ exactly for quad8 -- the case the constant was validated on, so
-   * nothing changes for any 2D serendipity element -- and gives \f$w = \tfrac{1}{3}\f$ for hexa20,
-   * a third of the way inside the admissible range rather than on its edge. The cap keeps
-   * \f$\tfrac{1}{2}\f$ as the value used wherever it is safe.
+   * Returned here is \f$w = \min(\tfrac{1}{2}, \tfrac{2}{3} w_\mathrm{max})\f$. The
+   * \f$\tfrac{2}{3}\f$ is a safety fraction chosen here, not a prescription of Yang et al.: it is
+   * the largest simple fraction that still yields \f$w = \tfrac{1}{2}\f$ for quad8 -- the case the
+   * constant was validated on, so nothing changes for any 2D serendipity element -- while giving
+   * \f$w = \tfrac{1}{3}\f$ for hexa20, a third of the way inside the admissible range rather than
+   * on its edge. The cap keeps \f$\tfrac{1}{2}\f$ as the value used wherever it is safe.
    *
    * An element with no negatively-integrating corner shape function (every linear element, since
    * there \f$N_\mathrm{lin} \equiv N\f$ and the result does not depend on \f$w\f$ at all) is
    * unconstrained and gets \f$\tfrac{1}{2}\f$.
+   *
+   * @note The reproduction of \f$\tfrac{1}{2}\f$ for quad8 is exact analytically, not necessarily
+   * bit-exact: the row sums are accumulated numerically over the element's own quadrature points,
+   * so \f$w_\mathrm{max}\f$ can land an ulp below \f$\tfrac{3}{4}\f$ (it does for a quad8 under
+   * 2x2 reduced integration) and the returned weight then sits an ulp below \f$\tfrac{1}{2}\f$
+   * rather than on it. The difference is far below any tolerance the lumped masses are checked
+   * against, but it is a rounding-level difference and not a bitwise identity.
+   *
+   * @note Positivity is enforced at the corner nodes only, which is all a blend weight can reach.
+   * A node with no linear counterpart carries \f$w S^{N}_i\f$, so if its own shape function
+   * integrates to a negative value -- not possible for any of the element types in use, but
+   * reachable in principle by a sufficiently distorted one -- its lumped mass is negative for
+   * every \f$w > 0\f$ and this function cannot help. A positive returned weight is therefore not
+   * a guarantee of a positive definite lumped mass matrix.
    */
   inline double manifoldBlendWeight( const Eigen::VectorXd& rowSumsHighOrder, const Eigen::VectorXd& rowSumsLinear )
   {
@@ -96,7 +111,7 @@ namespace Marmot::FiniteElement::MassLumping {
    *
    * @param rowSumsHighOrder Row sums from the element's own shape functions.
    * @param rowSumsLinear Row sums from the linear shape functions, one per corner node.
-   * @param weight The blend weight, from :cpp:func:`manifoldBlendWeight`.
+   * @param weight The blend weight, from manifoldBlendWeight().
    * @return One fraction per node, summing to one.
    *
    * @details Density-free on purpose: positivity and the mass *distribution* are properties of the
@@ -110,6 +125,11 @@ namespace Marmot::FiniteElement::MassLumping {
    * remaining nodes but conserves the element total. That is why an incorrect weight leaves the
    * element mass, and hence the model mass, perfectly correct -- and is invisible to any check that
    * looks at totals.
+   *
+   * @note The normalisation is skipped, and the raw blended row sums returned, if their total is
+   * not positive. That cannot happen for any element whose geometry is valid, since the total is
+   * the element volume; it is a guard against dividing by a degenerate element's zero volume, not
+   * a supported mode.
    */
   inline Eigen::VectorXd manifoldMassFractions( const Eigen::VectorXd& rowSumsHighOrder,
                                                 const Eigen::VectorXd& rowSumsLinear,
@@ -128,7 +148,7 @@ namespace Marmot::FiniteElement::MassLumping {
   /**
    * @brief The factor by which a non-uniform lumped mass tightens the critical time step.
    *
-   * @param massFractions Per-node lumped mass fractions, from :cpp:func:`manifoldMassFractions`.
+   * @param massFractions Per-node lumped mass fractions, from manifoldMassFractions().
    * @return The factor to apply to a characteristic-length / wave-speed time step estimate.
    *
    * @details The usual estimate \f$\Delta t = l / c\f$ is the stable increment for an element whose
@@ -147,6 +167,18 @@ namespace Marmot::FiniteElement::MassLumping {
    * unaccounted for, because \f$l/c\f$ is a linear-element formula and a quadratic element's highest
    * free eigenfrequency is well above what it predicts. Closing that properly wants an
    * eigenvalue-based estimate rather than another factor.
+   *
+   * @warning A non-positive smallest fraction returns 1.0, i.e. the uncorrected \f$l/c\f$
+   * estimate. That is deliberately a fallback and not a fix: a non-positive nodal mass means the
+   * lumping itself has failed, no time step derived from it is meaningful, and no blend weight can
+   * repair it (see the second @note on manifoldBlendWeight()). Scaling \f$l/c\f$ by
+   * \f$\sqrt{m_\mathrm{min}/m_\mathrm{uniform}}\f$ would return zero or NaN and mask the cause, so
+   * the estimate is left alone and the assembled mass is where the failure belongs.
+   *
+   * @warning Nothing currently reports it there either: the only check on the assembled lumped
+   * mass is on the solver side and tests for an exact zero, which a negative or near-zero nodal
+   * mass passes. So a lumping failure is at present silent in both places. Detecting it at
+   * assembly is the right fix and is deliberately out of scope here.
    */
   inline double timeStepFactorFromMassDistribution( const Eigen::VectorXd& massFractions )
   {

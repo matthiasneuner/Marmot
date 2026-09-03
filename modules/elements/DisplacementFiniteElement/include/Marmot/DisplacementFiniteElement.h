@@ -322,7 +322,8 @@ namespace Marmot::Elements {
      * \f$w = \min(\tfrac{1}{2}, \tfrac{2}{3}\,w_\mathrm{max})\f$: exactly \f$\tfrac{1}{2}\f$
      * wherever that is safe -- every 2D serendipity element, and every linear element, where the
      * result does not depend on \f$w\f$ at all -- and \f$\tfrac{1}{3}\f$ for a hexa20. It
-     * reproduces the values a per-element-type special case would give, without needing one, and
+     * reproduces -- analytically, and to rounding in floating point -- the values a
+     * per-element-type special case would give, without needing one, and
      * the critical time step reads its mass distribution from the same helper so the two cannot
      * disagree.
      *
@@ -478,6 +479,14 @@ namespace Marmot::Elements {
                                      << __PRETTY_FUNCTION__
                                      << ": invalid material assigned; cannot cast to MarmotMaterialHypoElastic!" );
 
+      /* Deliberately VOLUME based, and deliberately not the length
+       * computeCriticalTimeStepForExplicitDynamics uses. The material's characteristic length is a
+       * regularisation length -- it sets the width over which a softening law dissipates its
+       * fracture energy -- and the volume-equivalent length is the right measure for that. The
+       * stability estimate needs the opposite: the element's SMALLEST extent, because that is what
+       * bounds the highest frequency. The two definitions are not interchangeable; do not unify
+       * them.
+       */
       if constexpr ( nDim == 3 )
         qp.material->setCharacteristicElementLength( std::cbrt( 8 * qp.detJ ) );
       if constexpr ( nDim == 2 )

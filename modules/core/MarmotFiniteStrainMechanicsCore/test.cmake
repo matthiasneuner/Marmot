@@ -18,3 +18,6 @@ add_marmot_test("TestMarmotFiniteStrainViscoelasticity" "${CURR_TEST_SOURCE_DIR}
 
 # Tests for the Hughes-Winget small-strain wrapper
 add_marmot_test("TestMarmotMaterialHughesWinget" "${CURR_TEST_SOURCE_DIR}/TestMarmotMaterialHughesWinget.cpp")
+
+# Tests for the gradient-enhanced Hughes-Winget small-strain wrapper
+add_marmot_test("TestMarmotMaterialGradientEnhancedHughesWinget" "${CURR_TEST_SOURCE_DIR}/TestMarmotMaterialGradientEnhancedHughesWinget.cpp")

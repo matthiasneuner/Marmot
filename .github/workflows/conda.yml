@@ -6,7 +6,7 @@ name: conda
 
 on:
   push:
-    branches: [next_v26.11]
+    branches: [master]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
@@ -14,7 +14,7 @@ on:
 env:
   CHANNEL: matthiasneuner/edelweiss
   # The release the development snapshots lead up to: they are versioned <NEXT_RELEASE>.dev<commit time>.
-  NEXT_RELEASE: "26.11"
+  NEXT_RELEASE: "27.05"
 
 jobs:
   build:

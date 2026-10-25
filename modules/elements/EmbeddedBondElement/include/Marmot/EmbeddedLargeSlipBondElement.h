@@ -286,7 +286,7 @@ namespace Marmot::Elements {
     {
       const bool tet = hostGeometry.shape == FiniteElement::ElementShapes::Tetra4 ||
                        hostGeometry.shape == FiniteElement::ElementShapes::Tetra10;
-      VectorDim xi = tet ? VectorDim::Constant( 0.25 ) : VectorDim::Zero();
+      VectorDim xi = tet ? VectorDim( VectorDim::Constant( 0.25 ) ) : VectorDim( VectorDim::Zero() );
       // relative coordinates + relative criterion, see EmbeddedBondElement::findHostParentCoordinates
       const auto shift     = hostGeometry.coordinates.template head< nDim >().eval();
       auto       coordsRel = hostGeometry.coordinates.eval();

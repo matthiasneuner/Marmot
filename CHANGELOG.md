@@ -19,6 +19,16 @@ All notable changes to Marmot are documented in this file. The format follows
 - `CWFCORRECTION`: `load[0]` selects the corrected traction components as a bit mask (1 = x, 2 = y, 4 = z;
   0 or no load = all), for faces where only the normal displacement is prescribed.
 - Tests for all registered meshfree particles, cells and material points, and for the meshfree core.
+- Embedded reinforcement: `elements/TrussElement` (`TR2D2`, `TR2D3`, `TR3D2`, `TR3D3` small strain; `TR*FS` finite
+  strain, co-rotated), `elements/EmbeddedBondElement` (`EB<nDim>D<nBarNodes><host>`, bond-slip of a bar in a host
+  element), the pluggable `MarmotBondSlipLaw` interface with its `MarmotBondSlipLawFactory`, and the bond-slip laws
+  `materials/LinearElasticBondSlip` and `materials/ModelCode2010BondSlip`.
+- `MarmotMaterialFiniteStrain::computeUniaxialStress`: uniaxial stress reduction of finite strain materials.
+- `elements/BeamElement`: Euler-Bernoulli beams `BE2D2`, `BE2D3`, `BE3D2`, `BE3D3` (2 or 3 nodes, geometrically
+  linear), node fields displacement and rotation, sections given as integration points (any shape) with one
+  material instance per point (any hypoelastic material); for embedded beams in EdelweissFE.
+- `MarmotMaterialHypoElastic::computeBeamStress`: beam stress reduction (sigma22 = sigma33 = sigma23 = 0; axial and
+  transverse shear strains prescribed), appended at the end of the class (no shift of the existing virtual table).
 
 ### Changed
 - **Breaking:** a rank-deficient moment matrix of the reproducing kernel approximations now throws

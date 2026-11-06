@@ -102,7 +102,7 @@ namespace Marmot::Discretizations::Meshfree {
      * @f$ \mathrm{d}w / \mathrm{d}r @f$, which shares @f$ z @f$ with it:
      * @f[
      *   \frac{\mathrm{d}w}{\mathrm{d}r} = \frac{\operatorname{sign}(r)}{a} \begin{cases} -4 z, & z \le \tfrac{1}{2},
-     *   \\ -4 + 4 z, & \tfrac{1}{2} < z \le 1, \\ 0, & z > 1. \end{cases}
+     *   \\ -4 (1 - z), & \tfrac{1}{2} < z \le 1, \\ 0, & z > 1. \end{cases}
      * @f]
      * @param[in]  coord_minus_center Signed distance @f$ r = x_i - x_{A,i} @f$ in one coordinate direction.
      * @param[out] dw_dr              The derivative @f$ \mathrm{d}w / \mathrm{d}r @f$; nullptr if not needed.
@@ -123,9 +123,15 @@ namespace Marmot::Discretizations::Meshfree {
     void moveTo( const double* coord ) override;
 
     /**
-     * @brief Check whether a point lies within the support, i.e., whether @f$ \phi_A(\boldsymbol{x}) > 0 @f$.
+     * @brief Check whether a point lies within the support, the open box @f$ |x_i - x_{A,i}| < a @f$: strictly inside
+     * the bounding box of getBoundingBox(), compared with the same bounds.
+     *
+     * The test is on the coordinates, not on the sign of the kernel: the kernel vanishes at the end of its support
+     * like @f$ (1 - z)^p @f$, so its value just inside is far below the round-off of the coordinates, and the answer
+     * must not depend on it. A particle manager that assigns kernel functions by their bounding boxes thereby assigns
+     * exactly the kernel functions this test finds.
      * @param[in] coord Coordinates of the point (length @f$ d @f$).
-     * @return True if the kernel is positive at the point.
+     * @return True if the point is strictly inside the support box.
      */
     bool isInSupport( const double* coord ) const override;
 

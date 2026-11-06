@@ -79,9 +79,10 @@ namespace Marmot::Discretizations::Meshfree {
       w     = 1 - 2 * z * z;
       dw_dz = -4 * z;
     }
+    // factored: expanded, the polynomial loses its value near z = 1 to cancellation
     else if ( z <= 1 ) {
-      w     = 2 - 4 * z + 2 * z * z;
-      dw_dz = -4 + 4 * z;
+      w     = 2 * ( 1 - z ) * ( 1 - z );
+      dw_dz = -4 * ( 1 - z );
     }
     else {
       w     = 0;
@@ -106,7 +107,12 @@ namespace Marmot::Discretizations::Meshfree {
 
   bool KernelFunctionBSpline2ndOrderBoxed::isInSupport( const double* coord ) const
   {
-    return computeKernelFunction( coord ) > 0;
+    // The same comparisons as with the bounding box of getBoundingBox(), so that a particle manager that assigns
+    // kernel functions by their bounding boxes and this test agree on every point.
+    for ( int i = 0; i < _dim; i++ )
+      if ( !( _centerCoord[i] - _supportRadius < coord[i] && coord[i] < _centerCoord[i] + _supportRadius ) )
+        return false;
+    return true;
   }
 
   void KernelFunctionBSpline2ndOrderBoxed::getBoundingBox( double* min, double* max ) const

@@ -613,6 +613,15 @@ All notable changes to Marmot are documented in this file. The format follows
   `quadratureRules()`. This changes the last digits (about 1e-15 relative) of all elements and faces that use the
   3-point, 3x3 or 3x3x3 rule: the full-integration Quad8 and Hexa20 elements, pressure on Quad8 and Hexa20 faces, and
   the consistent mass of Quad8 and Hexa20.
+- **Results:** the boxed B-spline kernel functions (`KernelFunctionBSpline2ndOrderBoxed`,
+  `KernelFunctionBSpline3rdOrderBoxed`) end exactly at their support radius. `isInSupport` tested the sign of the
+  kernel, whose outer piece, evaluated as the expanded polynomial, lost its value to cancellation within a relative
+  distance of about 1e-8 (quadratic) and 5e-6 (cubic) of the end of the support: there the round-off of the
+  coordinates decided the answer. The VCI correction of the particles asks `isInSupport` for every particle center, so
+  where particle centers lie on support boundaries (a support radius that is a multiple of the particle spacing), the
+  result depended on the order of floating-point operations, e.g. on the number of threads. `isInSupport` is now the
+  strict interior of the bounding box, compared with the bounds of `getBoundingBox`, as a particle manager assigns
+  the kernel functions; the outer pieces are evaluated in factored form, accurate up to the end of the support.
 
 ## [v26.11] - 2026-11-02
 

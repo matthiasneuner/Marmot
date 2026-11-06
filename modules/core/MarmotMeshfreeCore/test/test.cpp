@@ -287,6 +287,43 @@ void testKernelFunctions()
   checkKernel< Marmot::Discretizations::Meshfree::KernelFunctionBSpline3rdOrderBoxed >( "BSpline3rdOrderBoxed" );
 }
 
+// near the end of the support, at a gap g to it: the value is the B-spline there to round-off, positive, and the
+// point is in the support; the support is the open box, with the bounds of the bounding box
+template < typename Kernel >
+void checkKernelNearTheEndOfItsSupport( const std::string& name, const std::function< double( double ) >& w_atGap )
+{
+  double center = 0.0;
+  Kernel kernel( &center, 1, 1.0 );
+
+  for ( double g : { 1e-2, 1e-4, 1e-6, 1e-8 } ) {
+    const double x   = 1 - g;
+    const double gap = 1 - x; // exact, unlike g
+    const double w   = kernel.computeKernelFunction( &x );
+    throwExceptionOnFailure( std::abs( w - w_atGap( gap ) ) <= 1e-12 * w_atGap( gap ) && kernel.isInSupport( &x ),
+                             Marmot::Utilities::MakeString() << name << ": value " << w << " at a gap of " << gap
+                                                             << " to the end of the support, not " << w_atGap( gap ) );
+  }
+
+  double lower, upper;
+  kernel.getBoundingBox( &lower, &upper );
+  const double justInside = std::nextafter( upper, 0.0 );
+  throwExceptionOnFailure( kernel.isInSupport( &justInside ) && !kernel.isInSupport( &upper ) &&
+                             !kernel.isInSupport( &lower ),
+                           name + ": the support is the open box" );
+}
+
+void testKernelFunctionsNearTheEndOfTheirSupport()
+{
+  checkKernelNearTheEndOfItsSupport<
+    Marmot::Discretizations::Meshfree::KernelFunctionBSpline2ndOrderBoxed >( "BSpline2ndOrderBoxed", []( double gap ) {
+    return 2 * gap * gap;
+  } );
+  checkKernelNearTheEndOfItsSupport<
+    Marmot::Discretizations::Meshfree::KernelFunctionBSpline3rdOrderBoxed >( "BSpline3rdOrderBoxed", []( double gap ) {
+    return 4.0 / 3.0 * gap * gap * gap;
+  } );
+}
+
 // reproduction of the complete polynomial basis of the requested order by the values, and of its derivatives by
 // the gradients; for the explicit (direct) derivatives, also consistency with the shape function values
 template < typename Kernel, typename Approximation >
@@ -825,6 +862,7 @@ int main()
 {
   auto testFunctions = std::vector< std::function< void() > >{ testMonomialBasis,
                                                                testKernelFunctions,
+                                                               testKernelFunctionsNearTheEndOfTheirSupport,
                                                                testReproducingKernelApproximation,
                                                                testImplicitGradientReproducingKernelApproximation,
                                                                testMomentMatrixGradient,

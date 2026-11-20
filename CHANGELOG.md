@@ -246,6 +246,9 @@ All notable changes to Marmot are documented in this file. The format follows
   evaluation. A larger basis, a dimension beyond 3 or a negative order is refused at construction
   (`std::invalid_argument`). `Math::computeMonomialBasis` and `computeMonomialBasisGradient` take any contiguous
   Eigen vector or matrix (`Eigen::Ref`) and form the powers by multiplication. Shape functions change by round-off.
+- `GM7` overrides `computeStressExplicit`: the stress update without homogenizing the tangents of the microplanes, one
+  update with the tangents an optional output (`stress_update`); stress and state variables are those of
+  `computeStress`, bitwise. The explicit path of `GeneralGradientEnhancedDisplacementFiniteElement` takes it.
 
 ### Deprecated
 - `BoundaryElement::computeSurfaceNormalVectorialLoadVectorForAxisymmetricElements()`: construct the boundary element

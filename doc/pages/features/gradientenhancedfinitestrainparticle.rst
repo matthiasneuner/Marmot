@@ -118,6 +118,12 @@ Euler), :math:`2/\omega\,(\sqrt{1+\zeta^2}-\zeta)` with :math:`\omega^2 = \lambd
 :math:`\zeta = \eta_K/(2\,m_K\,\omega)` for a second-order one (central differences). A nonlocal field with neither
 a micro-inertia nor a viscosity cannot be integrated explicitly and is rejected there.
 
+The estimate is per particle and errs on the safe side: it takes the particle's own size as the wavelength of the
+highest mode, while the reproducing kernels smooth over their support, which is larger than the particle spacing.
+Measured on a free bar of particles integrated by central differences, the mechanical limit lies well above
+:math:`l/c`, so the estimate is safe but leaves increment on the table; a tighter bound needs the eigenvalue of the
+assembled system, which only the solver has.
+
 Integration schemes
 ^^^^^^^^^^^^^^^^^^^
 

@@ -7,6 +7,9 @@ All notable changes to Marmot are documented in this file. The format follows
 ## [Unreleased]
 
 ### Added
+- `elements/GeneralGradientEnhancedDisplacementFiniteElement`: `G6GCPE8RM`, the plane strain element of the six-field
+  materials (GM7): Quad8 displacement, the six non-local fields on the four corner nodes, 2x2 Gauss points (the
+  plane strain counterpart of `G6GC3D20RM`).
 - `elements/TrussElement`: truss (bar) elements `T2D2`, `T2D3`, `T3D2`, `T3D3` (geometrically linear, hypoelastic
   materials in uniaxial stress) and `T2D2CR`, `T2D3CR`, `T3D2CR`, `T3D3CR` (total Lagrangian, finite strain
   materials evaluated in the frame co-rotated with the bar's tangent: rigid rotations are stress free, consistent

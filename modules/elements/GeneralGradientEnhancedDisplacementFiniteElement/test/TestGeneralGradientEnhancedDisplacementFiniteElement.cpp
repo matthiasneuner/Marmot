@@ -3820,6 +3820,25 @@ namespace {
   }
 } // namespace
 
+/* G6GCPE8RM, the plane strain element of the six-field materials (GM7): Quad8 displacement, the six non-local fields
+ * on the four corners, 2x2 Gauss points. Its kernels are those of the mixed-order element tested above
+ * (testMixedOrderQuad8Quad4PlaneStrain); here the registration: the shape, the degrees of freedom and the section.
+ */
+void testSixFieldPlaneStrainElementIsRegistered()
+{
+  using SixFieldQuad = GeneralGradientEnhancedDisplacementFiniteElement< 2, 8, 6, 4 >;
+
+  std::unique_ptr< Element > element( Marmot::Registry::ElementFactory::createElement( "G6GCPE8RM", 1 ) );
+  const auto*                sixFieldQuad = dynamic_cast< SixFieldQuad* >( element.get() );
+  throwExceptionOnFailure( sixFieldQuad != nullptr, "G6GCPE8RM: a Quad8 with six non-local fields on four nodes." );
+  throwExceptionOnFailure( element->getNNodes() == 8, "G6GCPE8RM: number of nodes." );
+  throwExceptionOnFailure( element->getNDofPerElement() == 2 * 8 + 6 * 4,
+                           "G6GCPE8RM: two displacements per node and six non-local fields per corner node." );
+  throwExceptionOnFailure( element->getNumberOfQuadraturePoints() == 4, "G6GCPE8RM: 2x2 Gauss points." );
+  throwExceptionOnFailure( sixFieldQuad->sectionType == SixFieldQuad::SectionType::PlaneStrain,
+                           "G6GCPE8RM: the section must be plane strain." );
+}
+
 void testAxisymmetricElementsAreRegistered()
 {
   const auto sectionOf = []( Element* element ) {
@@ -4132,6 +4151,7 @@ int main()
     testEnergyGradients,
     testPlaneStressEnergyTangentsHaveOutOfPlaneComponents,
     testEnergyGradientOutputIsRejectedWithoutSupport,
+    testSixFieldPlaneStrainElementIsRegistered,
     testAxisymmetricElementsAreRegistered,
     testComputeKernelsAxisymmetricTangentMatchesNumericalDifferentiation,
     testComputeKernelsAxisymmetricReproducesUniformStrainField,

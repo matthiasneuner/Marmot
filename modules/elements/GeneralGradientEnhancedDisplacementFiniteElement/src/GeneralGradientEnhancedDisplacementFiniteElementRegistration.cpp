@@ -166,6 +166,15 @@ namespace {
                        Quadrature::gaussExactToDegree( 4 ),
                        GeneralGradientEnhancedDisplacementFiniteElement< 2, 8, 6, 4 >::PlaneStress >() );
 
+  // plane strain counterpart of G6GC3D20RM: quadratic displacement, the six non-local fields on the four corners,
+  // reduced (2x2) integration
+  const static bool G6GCPE8RM_isRegistered = Marmot::Registry::ElementFactory::
+    registerElement( "G6GCPE8RM",
+                     makeFactoryFunction<
+                       GeneralGradientEnhancedDisplacementFiniteElement< 2, 8, 6, 4 >,
+                       Quadrature::gaussExactToDegree( 3 ),
+                       GeneralGradientEnhancedDisplacementFiniteElement< 2, 8, 6, 4 >::PlaneStrain >() );
+
   const static bool G6GC3D20RM_isRegistered = Marmot::Registry::ElementFactory::
     registerElement( "G6GC3D20RM",
                      makeFactoryFunction<

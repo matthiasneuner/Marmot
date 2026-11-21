@@ -112,7 +112,7 @@ these moved up by one.
 
 The material is registered as ``GM7`` in the general gradient-enhanced hypoelastic material factory (six nonlocal
 fields), and is used with the six-field ``GeneralGradientEnhancedDisplacementFiniteElement`` elements (``G6GCPS8``,
-``G6GC3D8``, ``G6GC3D20``, ...). At finite strains it is registered as ``GM7/COROTATIONAL`` (same properties) in the
+``G6GC3D8``, ``G6GC3D20``, ...; in plane strain ``G6GCPE8RM``, with the non-local fields on the corner nodes). At finite strains it is registered as ``GM7/COROTATIONAL`` (same properties) in the
 gradient-enhanced finite-strain material factory with six nonlocal fields, for the particles
 ``GradientEnhanced6FiniteStrain...`` (:doc:`gradientenhancedfinitestrainparticle`): GM7 is then driven by the
 logarithmic strain in the frame of the polar rotation, see :doc:`gradientenhancedcorotational`. It is not registered

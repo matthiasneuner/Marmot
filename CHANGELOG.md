@@ -168,6 +168,11 @@ All notable changes to Marmot are documented in this file. The format follows
   distribute its force with it, so that a penalty is conservative.
 
 ### Changed
+- One name for one quantity: the limit 2 / omega_max of the central difference method is the critical time step
+  everywhere (documentation, messages, and `CriticalTimeStep::IsotropicElasticStiffnessBound::criticalTimeStep`, was
+  `stableTimeIncrement`; the test helper `Testing::exactCriticalTimeStepOfTheElement`, was
+  `stableTimeIncrementOfTheElement`). **Breaking** for code that calls the two functions. The momentum buffer of
+  `Particle::computeLumpedMomentum` is named `pLumped` (was `mLumped`, the name of the mass buffer).
 - **Breaking:** Marmot requires Eigen 5; Eigen 3.4 is no longer supported (CMake rejects Eigen < 5.0, the conda package
   requires `eigen >=5`). CI builds and tests with Eigen 5.0.1 and autodiff 1.1.2 with the Eigen 5 patch
   (autodiff#397).

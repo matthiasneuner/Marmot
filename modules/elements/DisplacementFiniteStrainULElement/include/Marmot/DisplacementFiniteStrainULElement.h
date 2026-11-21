@@ -1036,7 +1036,7 @@ namespace Marmot::Discretizations::Elements {
 
     RhsSized lumpedMass;
     computeLumpedInertia( lumpedMass.data() );
-    criticalTimeStep = stiffnessBound.stableTimeIncrement( lumpedMass, largestPWaveModulus( qTotal ) );
+    criticalTimeStep = stiffnessBound.criticalTimeStep( lumpedMass, largestPWaveModulus( qTotal ) );
   }
 
   template < int nDim, int nNodes >
@@ -1158,7 +1158,7 @@ namespace Marmot::Discretizations::Elements {
 
     typename Parent::RhsSized lumpedMass;
     this->computeLumpedInertia( lumpedMass.data() );
-    criticalTimeStep = stiffnessBound.stableTimeIncrement( lumpedMass, this->largestPWaveModulus( qTotal ) );
+    criticalTimeStep = stiffnessBound.criticalTimeStep( lumpedMass, this->largestPWaveModulus( qTotal ) );
   }
 
   template < int nNodes >

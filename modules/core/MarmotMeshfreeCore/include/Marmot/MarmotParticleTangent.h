@@ -130,7 +130,7 @@ namespace Marmot::Discretizations::Meshfree {
    * @brief An upper bound of the absolute value of a particle's tangent times nonnegative weights,
    * @f$ |\boldsymbol{K}|\, \boldsymbol{W} @f$, from the factors of TangentRowsOfNode, without the tangent.
    *
-   * @details What a stable time increment needs from a tangent is a bound of its spectral radius, e.g. the
+   * @details What a critical time step needs from a tangent is a bound of its spectral radius, e.g. the
    * Collatz-Wielandt bound, @f$ \max_i (|\boldsymbol{K}|\boldsymbol{w})_i / w_i @f$ for positive weights
    * @f$ \boldsymbol{w} @f$. The tangent of a particle with @f$ n @f$ nodes has @f$ n^2 @f$ blocks; this bound of
    * @f$ |\boldsymbol{K}|\boldsymbol{W} @f$ costs @f$ O(n) @f$: the rows of node @f$ A @f$ are linear in the shape

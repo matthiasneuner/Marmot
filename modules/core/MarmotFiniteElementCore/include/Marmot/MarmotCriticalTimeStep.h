@@ -32,7 +32,7 @@
 #include <stdexcept>
 
 /**
- * @brief The stable time increment of the central difference method for a continuum element, from the largest
+ * @brief The critical time step of the central difference method for a continuum element, from the largest
  * eigenfrequency of the element.
  *
  * @details The central difference method with a lumped mass \f$\mathbf{M}\f$ is stable for \f$\Delta t \leq 2 /
@@ -73,7 +73,7 @@ namespace Marmot::Discretizations::Elements::CriticalTimeStep {
 
   /**
    * @brief The operators \f$\mathbf{K}_\lambda\f$ and \f$\mathbf{K}_\mu\f$ of an element, accumulated
-   * quadrature point by quadrature point, and the stable time increment they give with the element's lumped mass;
+   * quadrature point by quadrature point, and the critical time step they give with the element's lumped mass;
    * see the namespace documentation.
    */
   class IsotropicElasticStiffnessBound {
@@ -108,14 +108,14 @@ namespace Marmot::Discretizations::Elements::CriticalTimeStep {
     }
 
     /**
-     * @brief The stable time increment \f$2 / \sqrt{\rho c^2 \Lambda}\f$.
+     * @brief The critical time step \f$2 / \sqrt{\rho c^2 \Lambda}\f$.
      * @param lumpedMass The lumped mass of the displacement degrees of freedom, as the element assembles it.
      * @param pWaveModulus The largest P-wave modulus \f$\rho c^2\f$ of the quadrature points.
-     * @return The stable time increment.
+     * @return The critical time step.
      * @throws std::invalid_argument for a non-positive lumped mass or P-wave modulus: no time increment is
      * meaningful then.
      */
-    double stableTimeIncrement( const Eigen::VectorXd& lumpedMass, double pWaveModulus ) const
+    double criticalTimeStep( const Eigen::VectorXd& lumpedMass, double pWaveModulus ) const
     {
       if ( !( lumpedMass.minCoeff() > 0.0 ) )
         throw std::invalid_argument( "CriticalTimeStep: the element has a non-positive lumped mass." );

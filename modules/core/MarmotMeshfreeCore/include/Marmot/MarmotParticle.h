@@ -351,10 +351,10 @@ namespace Marmot::Discretizations::Meshfree {
      * @brief Compute the lumped momentum contribution of the particle.
      * @details Call 5 of an explicit increment, with the internal force. The call order of an explicit increment and
      * its contracts: the page "Meshfree Particles", section "The explicit life cycle of a particle".
-     * @param[in,out] mLumped Lumped momentum vector (node-wise).
+     * @param[in,out] pLumped Lumped momentum vector (node-wise).
      * @throws std::runtime_error in the default implementation.
      */
-    virtual void computeLumpedMomentum( [[maybe_unused]] double* mLumped ) const
+    virtual void computeLumpedMomentum( [[maybe_unused]] double* pLumped ) const
     {
       throw std::runtime_error( "Particle::computeLumpedMomentum: not implemented for this particle." );
     };
@@ -467,7 +467,7 @@ namespace Marmot::Discretizations::Meshfree {
      * @brief Explicit dynamics: add an upper bound of @f$ |\boldsymbol{K}|\, \boldsymbol{W} @f$, the absolute value of
      * the particle's stiffness at its current state times nonnegative weights, without assembling the stiffness.
      * @details @f$ \boldsymbol{K} @f$ is the tangent of computePhysicsKernels() at a zero increment, without the
-     * inertia: what a host bounds the stable time increment of its explicit scheme with (e.g. by the Collatz-Wielandt
+     * inertia: what a host bounds the critical time step of its explicit scheme with (e.g. by the Collatz-Wielandt
      * bound of the mass-scaled stiffness, which needs @f$ |\boldsymbol{K}|\boldsymbol{w} @f$ only). The bound costs
      * O(nodes) instead of the O(nodes^2) of the stiffness; see AbsoluteTangentBound. The material point is evaluated
      * at a zero increment on the working copy of the state, which the host resets afterwards, as after a trial

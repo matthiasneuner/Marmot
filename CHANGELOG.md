@@ -168,6 +168,9 @@ All notable changes to Marmot are documented in this file. The format follows
   distribute its force with it, so that a penalty is conservative.
 
 ### Changed
+- Faster reproducing kernel shape functions, with bitwise identical results: the kernels give value and gradient from
+  one evaluation, the basis of every covering kernel is evaluated once per point (it was evaluated for the moment
+  matrix and again for the shape functions), and the moment matrix is summed in local matrices.
 - One name for one quantity: the limit 2 / omega_max of the central difference method is the critical time step
   everywhere (documentation, messages, and `CriticalTimeStep::IsotropicElasticStiffnessBound::criticalTimeStep`, was
   `stableTimeIncrement`; the test helper `Testing::exactCriticalTimeStepOfTheElement`, was
@@ -283,7 +286,11 @@ All notable changes to Marmot are documented in this file. The format follows
 - **Breaking:** `Approximation::computeShapeFunctionGradients()`, which both reproducing kernel approximations only
   threw from; and their protected `computeHVector`, `computeHVectorGradient`, `computeMMatrix`,
   `computeMMatrixAndGradient`, `H0Vector` and `findCoveringKernelFunctionIndices`, replaced by
-  `evaluateKernelFunctions`, `evaluateBasis` and `assembleMomentMatrix`.
+  `evaluateKernelFunctions`, `evaluateBasisOfKernels` and `assembleMomentMatrix`.
+- **Breaking:** `Meshfree::KernelFunction::computeKernelFunctionGradient()`, replaced by
+  `computeKernelFunctionAndGradient()`, which returns the value with the gradient (the B-spline kernels evaluate their
+  one-dimensional factors once for both; `computeBSpline2ndOrder/3rdOrder` give the derivative on request, their
+  `...Gradient` functions are gone).
 - **Breaking:** `ContinuumMechanics::UniaxialStress::getUniaxialStressTangent()` (its only user was
   `MaterialHypoElastic::computeUniaxialStress()`) and `ContinuumMechanics::PlaneStress::getPlaneStressTangent()` (used
   by `MaterialHypoElastic::computePlaneStress()` and `GeneralGradientEnhancedDisplacementFiniteElement`): the condensed

@@ -49,8 +49,11 @@ namespace Marmot::Discretizations::Meshfree {
     const int completenessOrder = getCorrectedCompletenessOrder( nCovering );
     const int sizeH             = _basisOfOrder[completenessOrder].size();
 
+    Eigen::MatrixXd H;
+    evaluateBasisOfKernels( coord, kernelFunctions, phi, completenessOrder, H, nullptr );
+
     MomentMatrix M;
-    assembleMomentMatrix( coord, kernelFunctions, phi, nullptr, completenessOrder, M, nullptr );
+    assembleMomentMatrix( H, nullptr, phi, nullptr, M, nullptr );
 
     // first column for the values, the other columns for the gradients: they reproduce -d(x - x_I)^alpha/dx_i at
     // x_I, which is -1 for the linear monomial x_i and 0 otherwise; the linear monomials are the rows whose gradient
@@ -76,15 +79,14 @@ namespace Marmot::Discretizations::Meshfree {
                                                                kernelFunctions.size() );
     shapeFunctionValueGradients.setZero();
 
-    BasisVector H;
     for ( size_t A = 0; A < kernelFunctions.size(); A++ ) {
       const double phi_A = phi[A];
       if ( phi_A == 0.0 )
         continue; // not covering: zero value, already written, and zero gradient
-      evaluateBasis( coord, *kernelFunctions[A], completenessOrder, H, nullptr );
+      const auto H_A = H.col( A );
 
-      shapeFunctionValues_[A]              = bMat.col( 0 ).dot( H ) * phi_A;
-      shapeFunctionValueGradients.col( A ) = bMat.rightCols( _dim ).transpose() * H * phi_A;
+      shapeFunctionValues_[A]              = bMat.col( 0 ).dot( H_A ) * phi_A;
+      shapeFunctionValueGradients.col( A ) = bMat.rightCols( _dim ).transpose() * H_A * phi_A;
     }
   }
 

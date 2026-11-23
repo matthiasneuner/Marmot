@@ -72,9 +72,10 @@ order:
        ``getFaceCoordinates``, ``getEvaluationCoordinates`` and ``getNumberOfEvaluationPoints`` (the points at which
        the shape functions are evaluated, e.g., for checking the coverage by kernel supports),
        ``getInterpolationVector``
-   * - ``getAttachedPointInterpolationVector``
-     - the vector :math:`G_B` with which the particle moves a point attached to it (its center, a vertex, a face
-       center) in its next increment, for constraints on such points (see below)
+   * - ``getInterpolationVectorLinearizedAboutCenter``
+     - the shape functions linearized about the center, :math:`G_B`: the particle's own interpolation at its own points
+       (its center, a vertex, a face center), for every field; ``getInterpolationVector`` gives the exact shape
+       functions at an arbitrary location (see below)
 
 For explicit dynamics, ``updatePhysicsExplicit``, ``computePhysicsKernelsExplicit``, ``computeBodyLoadExplicit`` and
 ``computeDistributedLoadExplicit`` are provided, together with ``computeLumpedInertia`` (the coefficients of the second
@@ -89,11 +90,10 @@ particles of the displacement family (``Displacement*xNSNI/...``) and all partic
 none. EdelweissMeshfree loads the particles of an explicit analysis through ``computeBodyLoad`` and
 ``computeDistributedLoad`` and discards their tangent; it does not call the explicit loads. A particle gives no
 critical time step: the critical time step of a particle discretization is a property of the assembled system (see
-:doc:`gradientenhancedfinitestrainparticle`). What the host needs from a particle to bound it is
-``computeBoundOfAbsoluteStiffnessTimes``, an upper bound of :math:`|\boldsymbol{K}|\,\boldsymbol{W}` for its stiffness
-at the current state and nonnegative weights :math:`\boldsymbol{W}`, computed without the stiffness (see below). It
-throws unless a particle overrides it. The order in which a host calls these methods, and what each may change, is in
-:ref:`explicit-life-cycle-of-a-particle`.
+:doc:`gradientenhancedfinitestrainparticle`). What the host needs from a particle to bound it is its stiffness,
+which the particle describes node by node (``describeStiffness``, see below); the bound is a visitor of that
+description, ``addBoundOfAbsoluteStiffnessTimes``. A particle that does not describe its stiffness throws. The order in
+which a host calls the explicit methods, and what each may change, is in :ref:`explicit-life-cycle-of-a-particle`.
 
 **Dof layout.** Since the number of nodes of a particle is not fixed, no field-blocked layout (no
 ``dofIndicesPermutationPattern``) is used: the residual and the stiffness matrix are stored node-wise, in the order in
@@ -120,7 +120,7 @@ The explicit life cycle of a particle
 An explicit host (in EdelweissMeshfree, the explicit dynamic solver ``NED`` of EdelweissFE with the particles'
 discrete system) advances the particles by one increment :math:`[t_n, t_{n+1}]` with the following calls, particle
 by particle, in this order. Calls 1 to 3 advance the particle to :math:`t_{n+1}`, with the kernel functions of
-:math:`t_n`; calls 4 to 8 evaluate it there, on the kernel functions it reaches.
+:math:`t_n`; calls 4 to 7 evaluate it there, on the kernel functions it reaches.
 
 #. ``updatePhysicsExplicit(dQ, timeNew, dT)``, with :math:`\Delta\boldsymbol{Q} = \boldsymbol{V}_{n+1/2}\,\Delta t`
    of the nodes. The host has restored the working copy of the state to the accepted one before (the state contract
@@ -142,15 +142,16 @@ by particle, in this order. Calls 1 to 3 advance the particle to :math:`t_{n+1}`
    material point keeps, and change neither.
 #. ``computeLumpedInertia(m)``: the coefficients of the second time derivatives, a mass on the displacement field.
 #. ``computeLumpedDamping(c)``: the coefficients of the first time derivatives.
-#. ``computeBoundOfAbsoluteStiffnessTimes(W, nColumns, bound, 0, 1)``, when the host bounds the critical time step anew
-   (not every increment). It evaluates the material point at a zero increment, on the working copy of the state,
-   which the host resets afterwards; that evaluation **overwrites the response and the tangents the material point
-   keeps**, which are not state variables: **it comes after the force** (call 5), which reads them.
+
+``describeStiffness``, through which the host bounds the critical time step (not every increment), is not part of this
+order: wherever it is called, it leaves the particle as it was found. What it describes is the stiffness of the
+configuration of the last accept with the working copy of the state, which is the stiffness of an accepted state after
+call 2 or 3, where ``NED`` asks for it; between calls 1 and 2 the working copy holds the advanced state.
 
 **The tangent is required in an explicit analysis.** The particles call the material with its tangent
-(``computeStress``), never ``computeStressExplicit``: the bound of call 8 and the NSNI stabilization are formed from
-the tangent. A material whose tangent is inconsistent gives a bound of the critical time step that is too large, with no
-message.
+(``computeStress``), never ``computeStressExplicit``: the stiffness a particle describes, and with it the bound of the
+critical time step, and the NSNI stabilization are formed from the tangent. A material whose tangent is inconsistent
+gives a bound of the critical time step that is too large, with no message.
 
 A particle without the explicit path refuses calls 1 and 5 (the defaults throw), so the host stops at the first
 increment instead of integrating a mass without a force.
@@ -182,20 +183,36 @@ By the chain rule, the block of the tangent that couples the force :math:`\bolds
    \frac{\partial^2 N_B}{\partial Y_l\partial Y_m} .
 
 The three derivatives belong to node :math:`A` alone (its test function and the state of the material point). The
-particles compute them once per node (:cpp:struct:`Marmot::Discretizations::Meshfree::TangentRowsOfNode`, in
-``addStiffnessRowsOfNode`` of :cpp:class:`Marmot::Discretizations::Meshfree::DisplacementParticle` and
+particles compute them once per node (:cpp:struct:`Marmot::Discretizations::Meshfree::StiffnessOfNode`, in
+``addStiffnessOfNode`` of :cpp:class:`Marmot::Discretizations::Meshfree::DisplacementParticle` and
 :cpp:class:`Marmot::Discretizations::Meshfree::GradientEnhancedFiniteStrainParticle`, which the NSNI particles extend by
 their stabilization), and every block of the node's rows follows from the shape functions of the other node
-(``addTangentRowsOfNode``). The tangent of ``computePhysicsKernels`` is assembled this way.
+(``addRowsOfNode``). The tangent of ``computePhysicsKernels`` is assembled this way, from the stiffness of each node and
+its inertia.
+
+**The stiffness, described to a visitor.** In this factored form a particle describes its stiffness, the tangent of a
+zero increment without the inertia (see above for the state it is of): ``describeStiffness`` hands a
+:cpp:class:`Marmot::Discretizations::Meshfree::StiffnessVisitor` first the shape functions at the evaluation point,
+then the three derivatives of every node. It evaluates the material point at a zero increment and puts back what that
+evaluation changes, the state variables it was assigned and the response and the tangents the material point keeps
+(:cpp:class:`Marmot::Discretizations::Meshfree::SavedMaterialPoint`), also if the evaluation or the visitor throws: the
+particle is left as it was found. The density the material point keeps is taken once, when it is initialized. The
+particle knows nothing of what the visitor does with its stiffness. For an NSNI particle, the part of the
+stabilization that acts through the stress gradient of the increment vanishes at a zero increment; the stabilization
+itself is shared by the displacement and the gradient-enhanced particles (``Marmot::Discretizations::Meshfree::NSNI``).
 
 **The bound of the absolute stiffness.** An explicit host bounds the critical time step of the particles by the
 Collatz-Wielandt bound of the mass-scaled stiffness, which needs the row sums :math:`|\boldsymbol{K}|\,\boldsymbol{w}`
 only. The stiffness of a particle with :math:`n` nodes has :math:`n^2` blocks; its rows are linear in the shape
 functions of the other node, so the sum over that node is taken from a few weighted moments of the shape functions,
-computed once per particle, at a cost of :math:`O(n)`
-(:cpp:class:`Marmot::Discretizations::Meshfree::AbsoluteTangentBound`). For row :math:`i` of node :math:`A` and
-column component :math:`k`, with the weights :math:`w_B` of component :math:`k` of the nodes, the value factor
-:math:`a`, the gradient factors :math:`\boldsymbol{b}` and :math:`\boldsymbol{g}_B = \partial N_B/\partial\boldsymbol{Y}`:
+computed once per particle, at a cost of :math:`O(n)`: a visitor of the stiffness,
+:cpp:class:`Marmot::Discretizations::Meshfree::AbsoluteStiffnessBound`, which the host applies to a particle with
+``addBoundOfAbsoluteStiffnessTimes``. It lives with the host's other visitor,
+:cpp:class:`Marmot::Discretizations::Meshfree::StiffnessAssembler` (``assembleStiffness``, the stiffness itself, e.g. to
+check the bound against), in ``MarmotParticleStiffnessVisitors.h``, which the particles do not include; both are compiled
+in Marmot. For row :math:`i` of node :math:`A` and column component :math:`k`, with the
+weights :math:`w_B` of component :math:`k` of the nodes, the value factor :math:`a`, the gradient factors
+:math:`\boldsymbol{b}` and :math:`\boldsymbol{g}_B = \partial N_B/\partial\boldsymbol{Y}`:
 
 .. math::
 
@@ -208,14 +225,7 @@ and the same for the second gradients. The value term is exact; the gradient ter
 over the nodes, which keeps the directions of the gradients: it is exact for parallel gradients and
 :math:`2/\sqrt{3}` of the exact sum for gradients spread evenly in 3D (:math:`\pi/(2\sqrt{2})` in 2D). The terms are
 added by the triangle inequality, so the bound never lies below :math:`|\boldsymbol{K}|\,\boldsymbol{w}`, for symmetric
-and unsymmetric tangents alike. ``computeBoundOfAbsoluteStiffnessTimes`` evaluates the material point at a zero
-increment on the working copy of the state (which the host resets, as after a trial ``computePhysicsKernels``) and
-applies the bound to the stiffness rows of every node, without the inertia
-(``addBoundOfAbsoluteTangentTimesWeights``). That evaluation overwrites the response and the tangents of the material
-point, so an explicit host asks for the bound after the internal force of the increment. For an NSNI particle, the
-part of the stabilization that acts through the stress gradient of the increment vanishes at a zero increment; the
-stabilization itself is shared by the displacement and the gradient-enhanced particles
-(``Marmot::Discretizations::Meshfree::NSNI``).
+and unsymmetric stiffnesses alike.
 
 The particle domain
 -------------------
@@ -264,7 +274,7 @@ with the total deformation gradient :math:`\boldsymbol{F}` of the particle for t
        entries of :math:`\boldsymbol{U}` in the global basis
      - ``SQCNI_RU``, ``RS-SNNI``
 
-**Points attached to a particle.** The particle moves as a whole: its center by :math:`\sum_B N_B\,\Delta\boldsymbol{Q}_B`
+**The points of a particle.** The particle moves as a whole: its center by :math:`\sum_B N_B\,\Delta\boldsymbol{Q}_B`
 and its geometry with the deformation gradient increment
 :math:`\Delta\boldsymbol{F} = \boldsymbol{I} + \sum_B \Delta\boldsymbol{Q}_B \otimes \partial N_B/\partial\boldsymbol{Y}`
 about the center, with the shape functions at the center and the (smoothed) gradients that drive its kinematics. A
@@ -275,13 +285,17 @@ point :math:`\boldsymbol{Y}` of the geometry -- a vertex, a face center -- there
 
    G_B = N_B(\boldsymbol{Y}_c) + \frac{\partial N_B}{\partial \boldsymbol{Y}} \cdot (\boldsymbol{Y} - \boldsymbol{Y}_c) ,
 
-which ``getAttachedPointInterpolationVector`` returns. It sums to one, and it is not the vector of the shape functions
-at the point, ``getInterpolationVector``, except at the center: for a nodal field that is not linear, the two differ by
-a large fraction. A constraint that measures a point of the particle where the particle puts it (a support, a contact
-on a vertex) must distribute its force with :math:`G_B`, the transpose of the point's motion: only then is its penalty
-stiffness :math:`k\,\boldsymbol{G}\boldsymbol{G}^\mathsf{T}` symmetric and the constraint conservative. With the shape
-functions at the point instead, the stiffness :math:`k\,\boldsymbol{N}\boldsymbol{G}^\mathsf{T}` does work over a
-closed cycle of motion and can pump energy into a softened particle body. The vertices of every cell-shaped particle
+which ``getInterpolationVectorLinearizedAboutCenter`` returns: the shape functions linearized about the center. A
+particle knows every field it carries only by its value and its gradient at its center, so this is its own
+interpolation at its own points for every field: for the displacement, the motion of the point; for a nonlocal field
+or a temperature, the value the particle carries there. It sums to one, and it is not the vector of the shape functions
+at the point, ``getInterpolationVector``, except at the center: that one is exact at an arbitrary location, and for a
+nodal field that is not linear the two differ by a large fraction at a vertex. A constraint that measures a field at a
+point of the particle and distributes its force there with :math:`G_B` has the symmetric penalty stiffness
+:math:`k\,\boldsymbol{G}\boldsymbol{G}^\mathsf{T}` and is conservative. With the shape functions at the point for the
+force, while the point moves with :math:`G_B`, the stiffness :math:`k\,\boldsymbol{N}\boldsymbol{G}^\mathsf{T}` does work
+over a closed cycle of motion and can feed energy into a softened particle body (EdelweissMeshfree lets its
+constraints on the points of particles choose). The vertices of every cell-shaped particle
 (``getVertexCoordinates``) are those of its deformed geometry, which moves with :math:`\boldsymbol{F}`, not those of a
 smoothing domain that follows only a part of it.
 
@@ -499,8 +513,21 @@ Implementation
 .. doxygenclass:: Marmot::Registry::ParticleFactory
    :allow-dot-graphs:
 
-.. doxygenstruct:: Marmot::Discretizations::Meshfree::TangentRowsOfNode
+.. doxygenclass:: Marmot::Discretizations::Meshfree::StiffnessVisitor
    :allow-dot-graphs:
 
-.. doxygenclass:: Marmot::Discretizations::Meshfree::AbsoluteTangentBound
+.. doxygenstruct:: Marmot::Discretizations::Meshfree::StiffnessOfNode
+   :allow-dot-graphs:
+
+.. doxygenclass:: Marmot::Discretizations::Meshfree::AbsoluteStiffnessBound
+   :allow-dot-graphs:
+
+.. doxygenfunction:: Marmot::Discretizations::Meshfree::addBoundOfAbsoluteStiffnessTimes
+
+.. doxygenclass:: Marmot::Discretizations::Meshfree::StiffnessAssembler
+   :allow-dot-graphs:
+
+.. doxygenfunction:: Marmot::Discretizations::Meshfree::assembleStiffness
+
+.. doxygenclass:: Marmot::Discretizations::Meshfree::SavedMaterialPoint
    :allow-dot-graphs:

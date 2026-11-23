@@ -802,13 +802,13 @@ namespace {
     }
   }
 
-  // A point attached to the particle (a vertex, the center) moves with getAttachedPointInterpolationVector(): after an
-  // accepted increment dQ from a deformed state, x_new - x = sum_B G_B dQ^u_B to round-off, and G sums to one, also for
-  // the smoothing domains that do not follow F (the vertices are the geometry, not the smoothing domain). The shape
-  // functions at a vertex, getInterpolationVector(), do not move it, the reason a constraint that measures a vertex
-  // must distribute its force with G.
+  // A point of the particle's own (a vertex, the center) moves with getInterpolationVectorLinearizedAboutCenter():
+  // after an accepted increment dQ from a deformed state, x_new - x = sum_B G_B dQ^u_B to round-off, and G sums to one,
+  // also for the smoothing domains that do not follow F (the vertices are the geometry, not the smoothing domain). The
+  // shape functions at a vertex, getInterpolationVector(), do not move it, the reason a constraint that measures a
+  // vertex must distribute its force with G.
   template < int nDim >
-  void checkAttachedPointMotion( const std::string& name, const std::string& shape )
+  void checkOwnPointsMoveWithTheLinearizedInterpolation( const std::string& name, const std::string& shape )
   {
     using Points          = Eigen::Matrix< double, nDim, Eigen::Dynamic >;
     constexpr int nBlock  = Setup< nDim >::nBlock;
@@ -848,7 +848,7 @@ namespace {
 
     Eigen::MatrixXd G( nN, nV + 1 ), N( nN, nV + 1 );
     for ( int k = 0; k <= nV; k++ ) {
-      s.particle->getAttachedPointInterpolationVector( G.col( k ).data(), points.col( k ).data() );
+      s.particle->getInterpolationVectorLinearizedAboutCenter( G.col( k ).data(), points.col( k ).data() );
       s.particle->getInterpolationVector( N.col( k ).data(), points.col( k ).data() );
     }
 
@@ -864,9 +864,10 @@ namespace {
     const Points motion = moved - points;
 
     throwExceptionOnFailure( ( motion - dq * G ).norm() < 1e-12 * motion.norm(),
-                             name + ": an attached point moves with getAttachedPointInterpolationVector()" );
+                             name +
+                               ": a point of the particle moves with getInterpolationVectorLinearizedAboutCenter()" );
     throwExceptionOnFailure( ( G.colwise().sum().array() - 1.0 ).abs().maxCoeff() < 1e-12,
-                             name + ": the attached-point interpolation is a partition of unity" );
+                             name + ": the linearized interpolation is a partition of unity" );
     if ( !isPoint )
       throwExceptionOnFailure( ( motion.leftCols( nV ) - dq * N.leftCols( nV ) ).norm() > 1e-2 * motion.norm(),
                                name + ": the shape functions at the vertices do not move them" );
@@ -986,7 +987,7 @@ namespace {
     throwExceptionOnFailure( close( totalMass, density * V0, density * V0 ), name + ": total mass" );
   }
 
-  // The bound of |K| W the particle gives for the critical time step (computeBoundOfAbsoluteStiffnessTimes), against
+  // The bound of |K| W of the particle for the critical time step (addBoundOfAbsoluteStiffnessTimes), against
   // the stiffness itself, the tangent of a zero increment, at a state off the reference: never below |K| W, and its
   // largest entry of each column (what the Collatz-Wielandt bound takes) at most maxOverestimate times the exact one
   // (the Cauchy-Schwarz inequality over the nodes overestimates the gradient terms by about 1.2 in 2D, 1.3 in 3D).
@@ -1009,12 +1010,11 @@ namespace {
     for ( int a = 0; a < n; a++ )
       W( a, a % nBlock < nDim ? 0 : 1 ) = 1.0 + 0.5 * std::sin( 0.7 * a );
 
-    Marmot::Testing::checkAbsoluteStiffnessBoundAgainstStiffness( name,
-                                                                  *s.particle,
-                                                                  s.stateVars,
-                                                                  K,
-                                                                  W,
-                                                                  maxOverestimate );
+    Marmot::Testing::checkAbsoluteStiffnessBoundAgainstStiffness( name, *s.particle, K, W, maxOverestimate );
+
+    // the description of the stiffness leaves the particle as it was, also in the middle of an increment
+    const Eigen::VectorXd dQ = increment< nDim, nNonlocal >( s.nNodes(), 0.5 * scaleU, 0.5e-2 * scaleU );
+    Marmot::Testing::checkDescribingTheStiffnessLeavesTheParticleUnchanged( name, *s.particle, s.stateVars, dQ, true );
   }
 
   // The explicit force after an accepted increment, where F_n != I and the nonlocal field is no longer zero: the
@@ -1204,9 +1204,11 @@ int main()
     testFunctions.push_back( [name = name, shape = shape]() { checkInterface< 3 >( name, shape ); } );
   }
   for ( const auto& [name, shape] : planeStrain )
-    testFunctions.push_back( [name = name, shape = shape]() { checkAttachedPointMotion< 2 >( name, shape ); } );
+    testFunctions.push_back(
+      [name = name, shape = shape]() { checkOwnPointsMoveWithTheLinearizedInterpolation< 2 >( name, shape ); } );
   for ( const auto& [name, shape] : solid )
-    testFunctions.push_back( [name = name, shape = shape]() { checkAttachedPointMotion< 3 >( name, shape ); } );
+    testFunctions.push_back(
+      [name = name, shape = shape]() { checkOwnPointsMoveWithTheLinearizedInterpolation< 3 >( name, shape ); } );
   testFunctions.push_back( testSQCNIxNSNIFirstIncrementIsDeterministic );
 
   // the explicit scheme, with one nonlocal variable ...

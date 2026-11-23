@@ -125,7 +125,8 @@ namespace Marmot::Discretizations::Meshfree {
     }
 
     /**
-     * @brief Vertex coordinates of the smoothing domain: undeformed coordinates plus `vertex displacements`.
+     * @brief Vertex coordinates of the smoothing domain: undeformed coordinates plus `smoothing vertex
+     * displacements`.
      * @param[out] coordinates Coordinates, vertex by vertex (nDim x nVertices).
      */
     void getSmoothingDomainVertexCoordinates( double* coordinates ) const;
@@ -147,8 +148,9 @@ namespace Marmot::Discretizations::Meshfree {
      * @f$ \boldsymbol{F}_n @f$ of the last accepted state about the undeformed centroid, plus the center displacement,
      * @f$ \boldsymbol{x}_v = \boldsymbol{X}_c + \boldsymbol{F}_n(\boldsymbol{X}_v - \boldsymbol{X}_c) +
      * \boldsymbol{u}_c @f$ (the undeformed vertices plus the state `vertex displacements`, updated at each accepted
-     * increment). These are the points the particle moves with getAttachedPointInterpolationVector(), the vertices
-     * supports and contacts act on. They coincide with the smoothing domain only for `DeformationGradient`.
+     * increment). These are the points the particle moves with getInterpolationVectorLinearizedAboutCenter() (its own
+     * points), the vertices supports and contacts act on. They coincide with the smoothing domain only for
+     * `DeformationGradient`.
      * @param[out] coordinates Coordinates, vertex by vertex (nDim x nVertices).
      */
     void getVertexCoordinates( double* coordinates ) const override;
@@ -438,7 +440,8 @@ namespace Marmot::Discretizations::Meshfree {
     /// @f$.
     void _updateVertexDisplacementsFromMaterialPointDeformation();
 
-    /// @brief Update the smoothing domain, then set the center to the accepted material point position.
+    /// @brief Update the smoothing domain and the geometry, then set the center to the accepted material point
+    /// position.
     void updateParticlePositionToReferenceIntermediate() override
     {
       _updateVertexDisplacementsFromMaterialPointDeformation();
@@ -535,7 +538,6 @@ namespace Marmot::Discretizations::Meshfree {
       for ( int A = 0; A < _nNodes; A++ ) {
         const int idxA_u = nodeBlockSize * A;
 
-        /* const double T_A = GradientEnhancedFiniteStrainParticle< nDim, nNonlocal >::_T( A ); */
         r_U = testBoundary( A ) * f;
 
         {

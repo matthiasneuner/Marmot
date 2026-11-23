@@ -34,6 +34,8 @@
 
 namespace Marmot::Discretizations::Meshfree {
 
+  class StiffnessVisitor;
+
   /**
    * @class Marmot::Discretizations::Meshfree::Particle
    * @brief Abstract interface of a particle of the reproducing kernel particle method (RKPM).
@@ -61,10 +63,11 @@ namespace Marmot::Discretizations::Meshfree {
    * -# per increment: assignMeshfreeKernelFunctions(), optionally the VCI methods (vci_...), then repeatedly
    *    computePhysicsKernels() and the load methods, and after convergence acceptStateAndPosition().
    *
-   * That is an implicit increment. The calls of an explicit increment, in their order, and the four contracts that
-   * follow from it (a zero-length increment leaves the rates alone, an accept is idempotent, the bound comes after the
-   * force, the material's tangent is required) are written down once, on the page "Meshfree Particles" of the
-   * documentation, section "The explicit life cycle of a particle".
+   * That is an implicit increment. The calls of an explicit increment, in their order, and the three contracts that
+   * follow from it (a zero-length increment leaves the rates alone, an accept is idempotent, the material's tangent is
+   * required) are written down once, on the page "Meshfree Particles" of the documentation, section "The explicit life
+   * cycle of a particle". describeStiffness() is not one of them: it leaves the particle as it was found (and is of an
+   * accepted state after acceptStateAndPosition()).
    *
    * **State contract:** the state variable block is a *trial* copy. Before every call of computePhysicsKernels(),
    * the host restores it to the values committed by the last acceptStateAndPosition(), and @c dQ is the total
@@ -360,7 +363,12 @@ namespace Marmot::Discretizations::Meshfree {
     };
 
     /**
-     * @brief Evaluate the shape functions of the assigned kernel functions at arbitrary coordinates.
+     * @brief The shape functions of the assigned kernel functions, evaluated exactly at arbitrary coordinates,
+     * @f$ N_B(\boldsymbol{x}) @f$.
+     * @details For a location that is not one of the particle's own points, e.g. where a host interpolates a field of
+     * the kernel functions somewhere in the body. At its own points (its center, its vertices, its face centers) a
+     * particle knows a field only by the value and the gradient at its center: its own interpolation there is
+     * getInterpolationVectorLinearizedAboutCenter(), which differs from this one away from the center.
      * @param[out] vec Array of @f$ n_{\text{nodes}} @f$ shape function values.
      * @param[in] coordinates Evaluation point (getDimension() values).
      */
@@ -464,79 +472,76 @@ namespace Marmot::Discretizations::Meshfree {
     virtual void computeLumpedDamping( [[maybe_unused]] double* cLumped ) const {};
 
     /**
-     * @brief Explicit dynamics: add an upper bound of @f$ |\boldsymbol{K}|\, \boldsymbol{W} @f$, the absolute value of
-     * the particle's stiffness at its current state times nonnegative weights, without assembling the stiffness.
-     * @details @f$ \boldsymbol{K} @f$ is the tangent of computePhysicsKernels() at a zero increment, without the
-     * inertia: what a host bounds the critical time step of its explicit scheme with (e.g. by the Collatz-Wielandt
-     * bound of the mass-scaled stiffness, which needs @f$ |\boldsymbol{K}|\boldsymbol{w} @f$ only). The bound costs
-     * O(nodes) instead of the O(nodes^2) of the stiffness; see AbsoluteTangentBound. The material point is evaluated
-     * at a zero increment on the working copy of the state, which the host resets afterwards, as after a trial
-     * computePhysicsKernels(). That evaluation also overwrites the response and the tangents the material point keeps
-     * (not state variables, so the reset does not restore them): in explicit dynamics, call it after
-     * computePhysicsKernelsExplicit() of the increment, which reads them: it is call 8 of an explicit increment (the
-     * page "Meshfree Particles", section "The explicit life cycle of a particle"). The default throws: a particle with
-     * an own inertia must provide it.
-     * @param[in] columnWeights The nonnegative weights @f$ \boldsymbol{W} @f$, column-major, nDof x nColumns, in the
-     * dof order of the particle.
-     * @param[in] nColumns The number of columns of @p columnWeights.
-     * @param[in,out] bound Column-major, nDof x nColumns: the bound is added.
-     * @param[in] timeNew The time of the evaluation.
-     * @param[in] dT The time increment of the evaluation.
+     * @brief Describe the stiffness of the particle to a visitor, node by node: the shape functions at its evaluation
+     * point, then for every node the derivatives of its force with respect to the increment the particle interpolates
+     * (see StiffnessVisitor).
+     * @details The stiffness is the tangent of computePhysicsKernels() at a zero increment, without the inertia: the
+     * material point is evaluated with the configuration of the last acceptStateAndPosition() and the working copy of
+     * the state. It is the stiffness of an accepted state after acceptStateAndPosition(), where an explicit host asks
+     * for it (in the middle of an increment, the working copy holds the advanced state, and the stiffness describes
+     * neither). Wherever it is called, the particle is left as it was found (state variables, and the response and the
+     * tangents the material point keeps). The default throws: a particle that does not describe its stiffness refuses
+     * a host that needs it, e.g. for the bound of the critical time step of an explicit scheme
+     * (addBoundOfAbsoluteStiffnessTimes() in MarmotParticleStiffnessVisitors.h).
+     * @param[in,out] visitor The visitor.
+     * @param[in] timeNew The time of the zero increment the material point is evaluated with.
+     * @param[in] dT The time increment of the zero increment.
      */
-    virtual void computeBoundOfAbsoluteStiffnessTimes( [[maybe_unused]] const double* columnWeights,
-                                                       [[maybe_unused]] int           nColumns,
-                                                       [[maybe_unused]] double*       bound,
-                                                       [[maybe_unused]] double        timeNew,
-                                                       [[maybe_unused]] double        dT )
+    virtual void describeStiffness( [[maybe_unused]] StiffnessVisitor& visitor,
+                                    [[maybe_unused]] double            timeNew,
+                                    [[maybe_unused]] double            dT )
     {
-      throw std::runtime_error( "Particle::computeBoundOfAbsoluteStiffnessTimes: not implemented for this particle." );
+      throw std::runtime_error( "Particle::describeStiffness: not implemented for this particle." );
     };
 
     /**
-     * @brief The interpolation vector of a point attached to the particle: the coefficients @f$ G_B @f$ with which
-     * the particle moves that point in its next increment,
-     * @f$ \Delta\boldsymbol{x} = \sum_B G_B\, \Delta\boldsymbol{Q}_B @f$.
-     * @details A particle moves as a whole: its center by @f$ \sum_B N_B\,\Delta\boldsymbol{Q}_B @f$ and its domain
-     * with the homogeneous deformation gradient increment
-     * @f$ \Delta\boldsymbol{F} = \boldsymbol{I} + \sum_B \Delta\boldsymbol{Q}_B \otimes \partial N_B / \partial
-     * \boldsymbol{Y} @f$ about the center @f$ \boldsymbol{Y}_c @f$, with the shape functions and the (possibly
-     * smoothed) gradients that drive its kinematics. A point @f$ \boldsymbol{Y} @f$ attached to the particle (its
-     * center, a vertex, a face center) therefore moves with
+     * @brief The shape functions linearized about the center of the particle,
+     * @f$ G_B(\boldsymbol{Y}) = N_B(\boldsymbol{Y}_c) + \partial N_B / \partial \boldsymbol{Y} \cdot (\boldsymbol{Y} -
+     * \boldsymbol{Y}_c) @f$: the particle's own interpolation at its own points.
+     * @details A particle knows every field it carries only by its value at its center, @f$ \sum_B N_B
+     * \boldsymbol{Q}_B @f$, and its (possibly smoothed) gradient there, @f$ \sum_B \boldsymbol{Q}_B \otimes \partial
+     * N_B / \partial \boldsymbol{Y} @f$, with the shape functions and gradients that drive its kinematics. At a point
+     * @f$ \boldsymbol{Y} @f$ of its own (its center, a vertex, a face center) its interpolation of a field is therefore
+     * the linearization about the center,
      * @f[
-     *   G_B = N_B + \frac{\partial N_B}{\partial \boldsymbol{Y}} \cdot (\boldsymbol{Y} - \boldsymbol{Y}_c) ,
+     *   G_B = N_B(\boldsymbol{Y}_c) + \frac{\partial N_B}{\partial \boldsymbol{Y}} \cdot (\boldsymbol{Y} -
+     *   \boldsymbol{Y}_c) ,
      * @f]
-     * which is not getInterpolationVector() at that point, @f$ N_B(\boldsymbol{Y}) @f$, except at the center. A
-     * constraint that measures a point of the particle where the particle puts it must distribute its force
-     * @f$ \boldsymbol{f} @f$ with the same vector, @f$ \boldsymbol{f}_B = G_B\,\boldsymbol{f} @f$: only then is the
-     * force the transpose of the kinematics (the work of the force on the nodes is the work on the point), so that a
-     * penalty constraint has a symmetric stiffness and is conservative. The vector sums to one (a rigid translation
-     * moves the point as the nodes), so the force is distributed without a net residue. It has no default, unlike the
-     * methods next to it: the only candidate, the shape functions at the point, is precisely the wrong answer.
+     * for every field: for the displacement, the motion of the point in the next increment,
+     * @f$ \Delta\boldsymbol{x} = \sum_B G_B\, \Delta\boldsymbol{Q}_B @f$ (the particle moves as a whole, its center
+     * with @f$ N_B @f$ and its domain with the homogeneous deformation gradient increment about the center); for a
+     * nonlocal field or a temperature, the value the particle carries at the point. It is not getInterpolationVector()
+     * at the point, @f$ N_B(\boldsymbol{Y}) @f$, except at the center: that one is exact at an arbitrary location, not
+     * the particle's view of its own points. A constraint that measures a field at a point of the particle and
+     * distributes its force with the same vector, @f$ \boldsymbol{f}_B = G_B\,\boldsymbol{f} @f$, has a symmetric
+     * stiffness and is conservative (the work of the force on the nodes is the work on the point). The vector sums to
+     * one (a rigid translation moves the point as the nodes). It has no default, unlike the methods next to it: the
+     * only candidate, the shape functions at the point, is not the particle's own interpolation.
      * @param[out] vec Array of @f$ n_{\text{nodes}} @f$ values.
      * @param[in] coordinates The point in the reference intermediate configuration (getDimension() values).
      */
-    virtual void getAttachedPointInterpolationVector( double* vec, const double* coordinates ) const = 0;
+    virtual void getInterpolationVectorLinearizedAboutCenter( double* vec, const double* coordinates ) const = 0;
 
   protected:
     /**
-     * @brief The interpolation vector of a point attached to a particle (see getAttachedPointInterpolationVector()),
+     * @brief The shape functions linearized about the center (see getInterpolationVectorLinearizedAboutCenter()),
      * @f$ G_B = N_B + \partial N_B / \partial \boldsymbol{Y} \cdot (\boldsymbol{Y} - \boldsymbol{Y}_c) @f$, from the
      * shape functions and gradients that drive the particle's kinematics.
      * @param[out] vec Array of @p nNodes values.
      * @param[in] N Shape functions at the center, @p nNodes values.
      * @param[in] dN_dY Their gradients, column-major @p nDim x @p nNodes.
      * @param[in] centerCoordinates The center @f$ \boldsymbol{Y}_c @f$ (@p nDim values).
-     * @param[in] coordinates The attached point @f$ \boldsymbol{Y} @f$ (@p nDim values).
+     * @param[in] coordinates The point @f$ \boldsymbol{Y} @f$ (@p nDim values).
      * @param[in] nDim The number of dimensions.
      * @param[in] nNodes The number of nodes.
      */
-    static void interpolateAttachedPoint( double*       vec,
-                                          const double* N,
-                                          const double* dN_dY,
-                                          const double* centerCoordinates,
-                                          const double* coordinates,
-                                          int           nDim,
-                                          int           nNodes )
+    static void interpolationVectorLinearizedAboutCenter( double*       vec,
+                                                          const double* N,
+                                                          const double* dN_dY,
+                                                          const double* centerCoordinates,
+                                                          const double* coordinates,
+                                                          int           nDim,
+                                                          int           nNodes )
     {
       for ( int B = 0; B < nNodes; B++ ) {
         vec[B] = N[B];

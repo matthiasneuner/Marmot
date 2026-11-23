@@ -14,7 +14,7 @@ material is any material of the interface ``Marmot::Materials::MaterialGradientE
 variable, ``GM7/COROTATIONAL`` (:doc:`gradientenhancedcorotational`) with six. The weak forms below are written for one
 nonlocal variable; with several, each :math:`\bar N_K` has its own balance with its own :math:`c_K`, and they couple
 only through the material (:math:`\partial L_K/\partial\bar N_M`). The names of the nonlocal fields follow from
-their *number*, not from the material (``GradientEnhancedFiniteStrainMaterialPoint::nonlocalNodeFields``): six are the
+their *number*, not from the material (``GradientEnhancedFiniteStrainNames<nNonlocal>::nonlocalNodeFields``): six are the
 one field ``strain symmetric`` (state ``nonlocal strain``), any other number the scalar fields ``nonlocal damage``,
 ``nonlocal damage 2``, ... (state ``nonlocal damage``). A host must know each name: in EdelweissFE, a field is
 registered in the dictionaries of ``edelweissfe/config/phenomena.py``, where ``nonlocal damage 2`` is the last of the
@@ -125,8 +125,8 @@ particle's own bound, :math:`\lambda_\mathrm{max}(\boldsymbol M_p^{-1}\boldsymbo
 unbounded: a particle's stiffness couples nodes at which its own lumped mass vanishes (the mass is taken at the
 centre, the smoothed gradients at the faces). The critical time step is therefore a property of the assembled system,
 which the explicit solver bounds from the assembled lumped mass and a bound of the absolute value of every particle's
-stiffness, ``computeBoundOfAbsoluteStiffnessTimes``, computed node by node without the stiffness (see
-:doc:`meshfreeparticles`; EdelweissMeshfree).
+stiffness, ``addBoundOfAbsoluteStiffnessTimes``, computed node by node from the stiffness the particle describes
+(``describeStiffness``), without forming it (see :doc:`meshfreeparticles`; EdelweissMeshfree).
 
 Integration schemes
 ^^^^^^^^^^^^^^^^^^^
@@ -153,7 +153,7 @@ while :math:`N_B` is the point value at the center. The smoothed gradients are u
 displacements (state ``smoothing vertex displacements``) and is updated at each accepted increment from :math:`\boldsymbol F_n` of
 the material point, according to the smoothing domain update type (the vertices of the particle,
 ``getVertexCoordinates``, and its face centers follow :math:`\boldsymbol F_n` for every update type, the geometry the
-particle moves with its interpolation vector of an attached point, see :doc:`meshfreeparticles`; the smoothing domain is
+particle moves with its shape functions linearized about the center, see :doc:`meshfreeparticles`; the smoothing domain is
 ``getVisualizationVertexCoordinates``):
 
 .. list-table::

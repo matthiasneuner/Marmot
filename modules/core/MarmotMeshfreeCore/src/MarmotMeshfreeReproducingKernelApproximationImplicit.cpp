@@ -50,15 +50,15 @@ namespace Marmot::Discretizations::Meshfree {
 
     Eigen::MatrixXd H;
     MomentMatrix    M;
-    const int       completenessOrder = assembleMomentMatrixOfThePoint( coord,
-                                                                  kernelFunctions,
-                                                                  phi,
-                                                                  nullptr,
-                                                                  nCovering,
-                                                                  H,
-                                                                  nullptr,
-                                                                  M,
-                                                                  nullptr );
+    const int       completenessOrder = chooseCompletenessOrderAndAssembleMomentMatrix( coord,
+                                                                                  kernelFunctions,
+                                                                                  phi,
+                                                                                  nullptr,
+                                                                                  nCovering,
+                                                                                  H,
+                                                                                  nullptr,
+                                                                                  M,
+                                                                                  nullptr );
     const int       sizeH             = _basisOfOrder[completenessOrder].size();
 
     // first column for the values, the other columns for the gradients: they reproduce -d(x - x_I)^alpha/dx_i at
@@ -85,14 +85,33 @@ namespace Marmot::Discretizations::Meshfree {
                                                                kernelFunctions.size() );
     shapeFunctionValueGradients.setZero();
 
+    if ( completenessOrder == 0 ) {
+      // The implicit gradients of order 0 reproduce only the derivative of a constant: they vanish identically, and a
+      // point evaluated with them would carry no strain. The point gets the Shepard gradients instead, the derivatives
+      // of its values, as with explicit gradients: with b = 1 / sum_B phi_B, Psi_A,i = b phi_A,i + b_,i phi_A and
+      // b_,i = -b^2 sum_B phi_B,i. Only here are the kernel gradients needed.
+      const double b                    = bMat( 0, 0 );
+      Coordinates  sumOfKernelGradients = Coordinates::Zero( _dim );
+      for ( size_t A = 0; A < kernelFunctions.size(); A++ )
+        if ( phi[A] != 0.0 ) {
+          kernelFunctions[A]->computeKernelFunctionAndGradient( coord, shapeFunctionValueGradients.col( A ).data() );
+          sumOfKernelGradients += shapeFunctionValueGradients.col( A );
+        }
+      const Coordinates db_dx = -b * b * sumOfKernelGradients;
+      for ( size_t A = 0; A < kernelFunctions.size(); A++ )
+        if ( phi[A] != 0.0 )
+          shapeFunctionValueGradients.col( A ) = b * shapeFunctionValueGradients.col( A ) + phi[A] * db_dx;
+    }
+
     for ( size_t A = 0; A < kernelFunctions.size(); A++ ) {
       const double phi_A = phi[A];
       if ( phi_A == 0.0 )
         continue; // not covering: zero value, already written, and zero gradient
       const auto H_A = H.col( A );
 
-      shapeFunctionValues_[A]              = bMat.col( 0 ).dot( H_A ) * phi_A;
-      shapeFunctionValueGradients.col( A ) = bMat.rightCols( _dim ).transpose() * H_A * phi_A;
+      shapeFunctionValues_[A] = bMat.col( 0 ).dot( H_A ) * phi_A;
+      if ( completenessOrder > 0 )
+        shapeFunctionValueGradients.col( A ) = bMat.rightCols( _dim ).transpose() * H_A * phi_A;
     }
   }
 

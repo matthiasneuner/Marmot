@@ -29,14 +29,24 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <vector>
 
 namespace Marmot::Discretizations::Meshfree {
 
-  ReproducingKernelApproximation::ReproducingKernelApproximation( int dim, int completenessOrder )
-    : _dim( dim ), _desiredCompletenessOrder( completenessOrder )
+  ReproducingKernelApproximation::ReproducingKernelApproximation( int    dim,
+                                                                  int    completenessOrder,
+                                                                  double momentMatrixConditionLimit )
+    : _dim( dim ),
+      _desiredCompletenessOrder( completenessOrder ),
+      _momentMatrixConditionLimit( momentMatrixConditionLimit )
   {
+    if ( !( momentMatrixConditionLimit >= 1.0 ) )
+      throw std::invalid_argument( Marmot::Utilities::MakeString()
+                                   << __PRETTY_FUNCTION__ << ": the limit on the condition of the moment matrix is "
+                                   << momentMatrixConditionLimit
+                                   << ", but a condition number is at least 1 (infinity for no limit)" );
     if ( dim < 1 || dim > maxDim || completenessOrder < 0 ||
          Math::computeSizeOfMonomialBasisVector( completenessOrder, dim ) > maxSizeOfBasis )
       throw std::invalid_argument( Marmot::Utilities::MakeString()
@@ -161,6 +171,47 @@ namespace Marmot::Discretizations::Meshfree {
     return MQr;
   }
 
+  int ReproducingKernelApproximation::assembleMomentMatrixOfThePoint(
+    const double*                               coord,
+    const std::vector< const KernelFunction* >& kernelFunctions,
+    const double*                               phi,
+    const double*                               dPhi_dx,
+    int                                         nCovering,
+    Eigen::MatrixXd&                            H,
+    Eigen::MatrixXd*                            dH_dx,
+    MomentMatrix&                               M,
+    MomentMatrixGradient*                       dM_dx ) const
+  {
+    const int completenessOrder = getCorrectedCompletenessOrder( nCovering );
+    evaluateBasisOfKernels( coord, kernelFunctions, phi, completenessOrder, H, dH_dx );
+    assembleMomentMatrix( H, dH_dx, phi, dPhi_dx, M, dM_dx );
+
+    if ( completenessOrder == 0 || std::isinf( _momentMatrixConditionLimit ) ||
+         conditionOfMomentMatrix( M ) <= _momentMatrixConditionLimit )
+      return completenessOrder;
+
+    // nearly singular: the Shepard functions of the covering kernels
+    evaluateBasisOfKernels( coord, kernelFunctions, phi, 0, H, dH_dx );
+    assembleMomentMatrix( H, dH_dx, phi, dPhi_dx, M, dM_dx );
+    return 0;
+  }
+
+  double ReproducingKernelApproximation::conditionOfMomentMatrix( const MomentMatrix& M ) const
+  {
+    const Eigen::Index n = M.rows();
+    BasisVector        D( n );
+    for ( Eigen::Index k = 0; k < n; k++ ) {
+      if ( !( M( k, k ) > 0.0 ) )
+        return std::numeric_limits< double >::infinity();
+      D( k ) = 1.0 / std::sqrt( M( k, k ) );
+    }
+    const MomentMatrix scaledM = D.asDiagonal() * M * D.asDiagonal();
+
+    const Eigen::LDLT< MomentMatrix > scaledMLdlt( scaledM );
+    const double reciprocalCondition = scaledMLdlt.info() == Eigen::Success ? scaledMLdlt.rcond() : 0.0;
+    return reciprocalCondition > 0.0 ? 1.0 / reciprocalCondition : std::numeric_limits< double >::infinity();
+  }
+
   void ReproducingKernelApproximation::computeShapeFunctions(
     const double*                               coord,
     const std::vector< const KernelFunction* >& kernelFunctions,
@@ -189,15 +240,19 @@ namespace Marmot::Discretizations::Meshfree {
     double*   dPhi_dx   = dPsi_dx;
     const int nCovering = evaluateKernelFunctions( coord, kernelFunctions, phi, dPhi_dx );
 
-    const int completenessOrder = getCorrectedCompletenessOrder( nCovering );
-    const int sizeH             = _basisOfOrder[completenessOrder].size();
-
-    Eigen::MatrixXd H, dH_dx;
-    evaluateBasisOfKernels( coord, kernelFunctions, phi, completenessOrder, H, dPsi_dx ? &dH_dx : nullptr );
-
+    Eigen::MatrixXd      H, dH_dx;
     MomentMatrix         M;
     MomentMatrixGradient dM_dx;
-    assembleMomentMatrix( H, dPsi_dx ? &dH_dx : nullptr, phi, dPhi_dx, M, dPsi_dx ? &dM_dx : nullptr );
+    const int            completenessOrder = assembleMomentMatrixOfThePoint( coord,
+                                                                  kernelFunctions,
+                                                                  phi,
+                                                                  dPhi_dx,
+                                                                  nCovering,
+                                                                  H,
+                                                                  dPsi_dx ? &dH_dx : nullptr,
+                                                                  M,
+                                                                  dPsi_dx ? &dM_dx : nullptr );
+    const int            sizeH             = _basisOfOrder[completenessOrder].size();
 
     // b = M^-1 H0, with H0 = H(0) = [1, 0, ..., 0]^T
     const auto        MQr = factorizeMomentMatrix( M, coord, nCovering );

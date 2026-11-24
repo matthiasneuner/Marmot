@@ -322,6 +322,12 @@ namespace Marmot::Discretizations::Meshfree {
     int getNBaseDof() const override { return nDofPerNodeU + nDofPerNodeN; }
 
     /**
+     * @brief The section of the particle, its template parameter.
+     * @return The section.
+     */
+    Section getSection() const override { return section; }
+
+    /**
      * @brief Fields per node.
      * @return `displacement`, then the nonlocal fields: `nonlocal damage` for one nonlocal variable, `strain
      * symmetric` for six (Marmot::Discretizations::MaterialPoints::GradientEnhancedFiniteStrainNames).

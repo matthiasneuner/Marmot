@@ -780,6 +780,20 @@ namespace {
                              type.name + ": a ring pulled through the axis is refused" );
   }
 
+  // The particle says its section (Particle::getSection()): axisymmetric, and Cartesian for its plane-strain twin.
+  void testTheParticleSaysItsSection( const ParticleType& type )
+  {
+    Patch patch( type, 0.25, 0.0, 0.25, 1, 1 );
+    throwExceptionOnFailure( patch.particles[0]->getSection() == Section::Axisymmetric,
+                             type.name + ": the section is axisymmetric" );
+
+    ParticleType planeStrainTwin = type;
+    planeStrainTwin.name.replace( planeStrainTwin.name.find( "Axisymmetric" ), 12, "PlaneStrain" );
+    Patch planeStrainPatch( planeStrainTwin, 0.25, 0.0, 0.25, 1, 1 );
+    throwExceptionOnFailure( planeStrainPatch.particles[0]->getSection() == Section::Cartesian,
+                             planeStrainTwin.name + ": the section is Cartesian" );
+  }
+
 } // namespace
 
 int main()
@@ -792,6 +806,7 @@ int main()
     testFunctions.push_back( [type]() { testRingVolumeAndLumpedMass( *type ); } );
     testFunctions.push_back( [type]() { testTangent( *type ); } );
     testFunctions.push_back( [type]() { testRefusals( *type ); } );
+    testFunctions.push_back( [type]() { testTheParticleSaysItsSection( *type ); } );
   }
   testFunctions.push_back( []() { testStiffnessBound( displacement, false ); } );
   testFunctions.push_back( []() { testStiffnessBound( gradientEnhanced, true ); } );

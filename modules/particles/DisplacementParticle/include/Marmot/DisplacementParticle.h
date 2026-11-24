@@ -327,6 +327,12 @@ namespace Marmot::Discretizations::Meshfree {
     int getNBaseDof() const override { return nDofPerNodeU; }
 
     /**
+     * @brief The section of the particle, its template parameter.
+     * @return The section.
+     */
+    Section getSection() const override { return section; }
+
+    /**
      * @brief Node fields.
      * @return "displacement".
      */

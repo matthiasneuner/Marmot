@@ -20,9 +20,10 @@ particles,
 and they are the same classes: the section of the particle, ``Marmot::Discretizations::Meshfree::Section``
 (``Cartesian`` or ``Axisymmetric``), is a template parameter, and what it changes is collected in
 ``ParticleSection`` (the integrals over the particle domain) and ``Hoop`` (the hoop terms of the weak form), both in
-``MarmotParticleSection.h``. This page derives what the axisymmetric section changes; everything else -- the
-updated-Lagrangian kinematics, the material point, the nonlocal balance, the explicit life cycle -- is that of the
-plane-strain particles. The conventions follow the axisymmetric finite elements ``CX8UL`` / ``CX8RUL``
+``MarmotParticleSection.h``. A host learns the section of a particle from ``Particle::getSection()``, e.g. to
+integrate the contact points on the faces of the particles over the same rings. This page derives what the
+axisymmetric section changes; everything else -- the updated-Lagrangian kinematics, the material point, the nonlocal
+balance, the explicit life cycle -- is that of the plane-strain particles. The conventions follow the axisymmetric finite elements ``CX8UL`` / ``CX8RUL``
 (:doc:`displacementfinitestrainelement`): the material sees the 3D state with the hoop stretch as its
 :math:`F_{33}`, and every integral carries the ring weight :math:`2\pi r`.
 

@@ -28,6 +28,7 @@
 #include "Marmot/MarmotMeshfreeApproximation.h"
 #include "Marmot/MarmotMeshfreeKernelFunction.h"
 #include "Marmot/MarmotMeshfreeQuadHexCell.h"
+#include "Marmot/MarmotParticle.h"
 #include "Marmot/MarmotParticleStiffness.h"
 #include "Marmot/MarmotUtils.h"
 #include <Eigen/Core>
@@ -43,15 +44,6 @@
  */
 
 namespace Marmot::Discretizations::Meshfree {
-
-  /**
-   * @brief The section of a particle: the measure of the integrals over its domain.
-   */
-  enum class Section {
-    Cartesian,    ///< the domain itself: plane strain (unit thickness) in 2D, the volume in 3D
-    Axisymmetric, ///< the ring the domain sweeps about the axis, @f$ dV = 2\pi r\,dA @f$ in the meridian half plane
-                  ///< @f$ (r, z) = (Y_1, Y_2) @f$
-  };
 
   /**
    * @brief The integrals over the domain of a particle with a domain (a Lagrange cell) in its section: its volume, the

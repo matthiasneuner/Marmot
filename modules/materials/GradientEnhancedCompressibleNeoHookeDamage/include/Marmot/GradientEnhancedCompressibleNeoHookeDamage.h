@@ -57,10 +57,9 @@ namespace Marmot::Materials {
    * | 2   | @f$ \kappa_0 @f$ | damage threshold (equivalent strain)      |
    * | 3   | @f$ \kappa_f @f$ | softening parameter, @f$ \kappa_f > \kappa_0 @f$ |
    * | 4   | @f$ l @f$        | nonlocal radius, @f$ c = l^2 @f$          |
-   * | 5   | @f$ \rho @f$     | density in the reference configuration (optional; for dynamics) |
-   * | 6   | @f$ \eta @f$     | nonlocal viscosity (optional; for explicit dynamics) |
+   * | 5   | @f$ \rho @f$     | density in the reference configuration    |
    *
-   * Constraints: @f$ K, G, \kappa_0, l > 0 @f$, @f$ \kappa_f > \kappa_0 @f$ and @f$ \eta \geq 0 @f$.
+   * Constraints: @f$ K, G, \kappa_0, l > 0 @f$ and @f$ \kappa_f > \kappa_0 @f$.
    *
    * State variables: @c kappa, the history maximum of the nonlocal field.
    *
@@ -73,8 +72,7 @@ namespace Marmot::Materials {
     /**
      * @brief Construct the material and validate its properties.
      * @param[in] materialProperties Array of the material properties, see the table above.
-     * @param[in] nMaterialProperties Length of @p materialProperties (at least 5; 6 with the density, 7 with the
-     * nonlocal viscosity).
+     * @param[in] nMaterialProperties Length of @p materialProperties (at least 5; 6 with the density).
      * @param[in] materialNumber Material label.
      * @throws std::invalid_argument for a too short property array or a property out of range.
      */
@@ -106,15 +104,6 @@ namespace Marmot::Materials {
      * @throws std::runtime_error if the density is not given.
      */
     double getDensity( const double* stateVars ) const override;
-
-    /**
-     * @brief The nonlocal viscosity @f$ \eta @f$, the damping of the nonlocal balance
-     * @f$ \eta\,\dot{\bar N} + \bar N - l^2\nabla^2\bar N = L @f$, which an explicit dynamic analysis integrates
-     * the nonlocal field with (first order in time).
-     * @param[in] stateVars State variables (not used).
-     * @return Property 6, or zero (the quasi-static balance) if it is not given.
-     */
-    NonlocalVector getNonlocalViscosity( const double* stateVars ) const override;
 
     /**
      * @brief Damage and its derivative for a given history variable.

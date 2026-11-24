@@ -46,6 +46,9 @@ namespace Marmot::Materials {
     if ( nonLocalRadius <= 0.0 )
       throw std::invalid_argument( Marmot::Utilities::MakeString()
                                    << __PRETTY_FUNCTION__ << ": the nonlocal radius must be positive" );
+    if ( nMaterialProperties > nRequiredProperties + 1 && materialProperties[nRequiredProperties + 1] < 0.0 )
+      throw std::invalid_argument( Marmot::Utilities::MakeString()
+                                   << __PRETTY_FUNCTION__ << ": the nonlocal viscosity must not be negative" );
 
     stateLayout.add( "kappa", 1 );
     stateLayout.finalize();
@@ -57,6 +60,14 @@ namespace Marmot::Materials {
       throw std::runtime_error( Marmot::Utilities::MakeString()
                                 << __PRETTY_FUNCTION__ << ": density not provided (property 5)" );
     return materialProperties[nRequiredProperties];
+  }
+
+  GradientEnhancedCompressibleNeoHookeDamage::NonlocalVector GradientEnhancedCompressibleNeoHookeDamage::
+    getNonlocalViscosity( const double* stateVars ) const
+  {
+    if ( nMaterialProperties <= nRequiredProperties + 1 )
+      return NonlocalVector::Zero();
+    return NonlocalVector::Constant( materialProperties[nRequiredProperties + 1] );
   }
 
   std::pair< double, double > GradientEnhancedCompressibleNeoHookeDamage::damage( double kappa ) const

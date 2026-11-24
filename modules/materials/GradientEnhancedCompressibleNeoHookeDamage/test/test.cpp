@@ -219,6 +219,17 @@ void testCumulativeDissipation()
                            "a step without damage growth must not dissipate" + where );
 }
 
+void testNonlocalViscosity()
+{
+  // zero without property 6 (the quasi-static balance), property 6 with it
+  const std::vector< double > withViscosity = { 3500., 1500., 1e-3, 1e-2, 1., 2.0, 1e-4 };
+  Mat                         viscous( withViscosity.data(), static_cast< int >( withViscosity.size() ), 1 );
+  throwExceptionOnFailure( checkIfEqual( material().getNonlocalViscosity( nullptr )( 0 ), 0.0 ),
+                           "no nonlocal viscosity without property 6" + where );
+  throwExceptionOnFailure( checkIfEqual( viscous.getNonlocalViscosity( nullptr )( 0 ), 1e-4 ),
+                           "the nonlocal viscosity is property 6" + where );
+}
+
 void testPropertyValidation()
 {
   auto rejects = [&]( std::vector< double > p, const std::string& what ) {
@@ -237,6 +248,7 @@ void testPropertyValidation()
   rejects( { 3500., 1500., 0.0, 1e-2, 1. }, "kappa0 = 0" );
   rejects( { 3500., 1500., 1e-3, 1e-2, 0.0 }, "l = 0" );
   rejects( { 3500., 1500., 1e-3, 1e-2, -1. }, "l < 0" );
+  rejects( { 3500., 1500., 1e-3, 1e-2, 1., 2.0, -1e-4 }, "a negative nonlocal viscosity" );
 
   // the density is optional in the card, but asking for it without one is an error
   const std::vector< double > noDensity = { 3500., 1500., 1e-3, 1e-2, 1. };
@@ -261,6 +273,7 @@ int main()
                                                                testObjectivity,
                                                                testFactoryAndProperties,
                                                                testCumulativeDissipation,
+                                                               testNonlocalViscosity,
                                                                testPropertyValidation };
   executeTestsAndCollectExceptions( testFunctions );
   return 0;

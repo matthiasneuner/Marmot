@@ -196,6 +196,9 @@ All notable changes to Marmot are documented in this file. The format follows
   `stableTimeIncrement`; the test helper `Testing::exactCriticalTimeStepOfTheElement`, was
   `stableTimeIncrementOfTheElement`). **Breaking** for code that calls the two functions. The momentum buffer of
   `Particle::computeLumpedMomentum` is named `pLumped` (was `mLumped`, the name of the mass buffer).
+- **Breaking:** `Element::getStateView` is no longer virtual: it checks the quadrature point index and calls the
+  protected `Element::getStateViewAtQuadraturePoint`, which an element implements instead (rename the override).
+  Callers are unchanged.
 - **Breaking:** Marmot requires Eigen 5; Eigen 3.4 is no longer supported (CMake rejects Eigen < 5.0, the conda package
   requires `eigen >=5`). CI builds and tests with Eigen 5.0.1 and autodiff 1.1.2 with the Eigen 5 patch
   (autodiff#397).
@@ -323,6 +326,10 @@ All notable changes to Marmot are documented in this file. The format follows
   only, isotropic). Plane stress is `ReducedStress::planeStressPrescribed` / `planeStressFree`.
 
 ### Fixed
+- `Element::getStateView` throws `std::invalid_argument` (naming the state, the index and the number of quadrature
+  points of the element) for a quadrature point outside `0` to `getNumberOfQuadraturePoints() - 1`, instead of
+  reading past the end of the element's quadrature points; e.g. an output asking for quadrature points 0 to 8 of a
+  4-point element segfaulted.
 - **Results** `HughesWingetWrapper` hands the stored elastic energy density and dissipation (per unit reference
   volume) back to the wrapped material (per unit current volume) converted, as an energy of the state divided by
   J_n = det(F_n) and as a dissipation accumulated along the path divided by J = det(F_{n+1}), so that

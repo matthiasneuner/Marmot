@@ -67,20 +67,39 @@ namespace Marmot::Discretizations::Meshfree {
    * The particle geometry also provides the faces for distributed loads: a follower pressure and the consistent weak
    * form (CWF) correction, see computeDistributedLoad().
    *
+   * The volume, the smoothed gradients and the surface vectors of the faces are those of the section
+   * (ParticleSection): for Section::Axisymmetric, the ring volume, the ring-weighted smoothed gradient with its area
+   * term and two Gauss points per face, and the ring of the face center times its surface vector. An axisymmetric
+   * particle needs the update type `DeformationGradient` (smoothing domains that tile the body, for the integration
+   * constraint), refuses a domain that is not in the meridian half plane, and supports the distributed load `PRESSURE`
+   * only. See the page "Axisymmetric Particles" of the documentation.
+   *
    * @tparam nDim The number of dimensions (e.g., 2 for 2D, 3 for 3D).
    * @tparam nVertices The number of vertices defining the particle's geometry.
+   * @tparam section The section (Section::Cartesian: plane strain or 3D; Section::Axisymmetric: nDim = 2).
    */
-  template < int nDim, int nVertices >
-  class DisplacementParticleSQCNI : public DisplacementParticle< nDim > {
+  template < int nDim, int nVertices, Section section = Section::Cartesian >
+  class DisplacementParticleSQCNI : public DisplacementParticle< nDim, section > {
 
     using TensorD  = Fastor::Tensor< double, nDim >;       ///< vector of size nDim
     using TensorDD = Fastor::Tensor< double, nDim, nDim >; ///< second-order tensor of size nDim
 
   protected:
-    using ParentPointParticle = DisplacementParticle< nDim >;      ///< the point particle base class
-    using ParticleDomainType  = ParticleDomain< nDim, nVertices >; ///< the particle geometry type
+    using ParentPointParticle = DisplacementParticle< nDim, section >; ///< the point particle base class
+    using ParticleDomainType  = ParticleDomain< nDim, nVertices >;     ///< the particle geometry type
 
-    ParticleDomainType _particleDomain;                            ///< geometry and smoothing domain of the particle
+    ParticleDomainType _particleDomain; ///< geometry and smoothing domain of the particle
+
+    using SectionIntegrals = ParticleSection< section, nDim, nVertices >; ///< the integrals of the section
+
+    /**
+     * @brief The smoothing domain of the particle.
+     * @return The cell of the smoothing domain in the intermediate configuration.
+     */
+    typename ParticleDomainType::LagrangeCellType smoothingDomain() const
+    {
+      return typename ParticleDomainType::LagrangeCellType( _particleDomain.getSmoothingVertexCoordinates() );
+    }
 
   public:
     /// how the smoothing domain follows the deformation
@@ -99,7 +118,8 @@ namespace Marmot::Discretizations::Meshfree {
      * @param[in] sizeMaterialProperties The size of the material properties array.
      * @param[in] approximation The meshfree approximation object used for shape functions.
      * @param[in] smoothingVolumeUpdateType The strategy for updating the smoothing domain's volume.
-     * @throws std::invalid_argument if the provided volume is not zero.
+     * @throws std::invalid_argument if the provided volume is not zero, and for an axisymmetric particle outside the
+     * meridian half plane (ParticleSection::checkDomain()) or with another update type than `DeformationGradient`.
      */
     DisplacementParticleSQCNI( int                                                          elementID,
                                const double*                                                nodeCoordinates,
@@ -156,25 +176,26 @@ namespace Marmot::Discretizations::Meshfree {
     }
 
     /**
-     * @brief Evaluation points of the shape functions: the face centers of the smoothing domain.
-     * @param[out] coordinates The coordinates (nDim x number of faces, column major).
+     * @brief Evaluation points of the shape functions: the quadrature points of the faces of the smoothing domain (the
+     * face centers, or two Gauss points per face of an axisymmetric particle, ParticleSection::faceQuadraturePoints()).
+     * @param[out] coordinates The coordinates (nDim x number of evaluation points, column major).
      */
     void getEvaluationCoordinates( double* coordinates ) const override
     {
       Eigen::Map< Eigen::Matrix< double, nDim, Eigen::Dynamic > > coordinatesMap( coordinates,
                                                                                   nDim,
-                                                                                  _particleDomain.getNumberOfFaces() );
-
-      for ( int i = 0; i < _particleDomain.getNumberOfFaces(); i++ ) {
-        coordinatesMap.col( i ) = _particleDomain.getSmoothingDomainFaceCenterCoordinates( i + 1 );
-      }
+                                                                                  getNumberOfEvaluationPoints() );
+      coordinatesMap = SectionIntegrals::faceQuadraturePoints( smoothingDomain() );
     }
 
     /**
      * @brief Number of evaluation points.
-     * @return The number of faces of the smoothing domain.
+     * @return The number of faces of the smoothing domain times the quadrature points per face.
      */
-    int getNumberOfEvaluationPoints() const override { return _particleDomain.getNumberOfFaces(); }
+    int getNumberOfEvaluationPoints() const override
+    {
+      return _particleDomain.getNumberOfFaces() * SectionIntegrals::nPointsPerFace;
+    }
 
     /**
      * @brief Center of the particle in the intermediate configuration, from the material point.
@@ -194,14 +215,21 @@ namespace Marmot::Discretizations::Meshfree {
 
     /**
      * @brief Supported distributed loads, on the faces of the particle domain.
-     * @return "PRESSURE" and "CWFCORRECTION".
+     * @return "PRESSURE" and "CWFCORRECTION"; "PRESSURE" only for an axisymmetric particle.
      */
     const std::unordered_map< std::string, int >& getSupportedDistributedLoadTypes() const override
     {
-      static const std::unordered_map< std::string, int > _supportedDistributedLoadTypes =
-        { { "PRESSURE", DisplacementParticle< nDim >::Pressure },
-          { "CWFCORRECTION", DisplacementParticle< nDim >::CWFCorrection } };
-      return _supportedDistributedLoadTypes;
+      if constexpr ( SectionIntegrals::isAxisymmetric ) {
+        static const std::unordered_map< std::string, int > _supportedDistributedLoadTypes = {
+          { "PRESSURE", DisplacementParticle< nDim, section >::Pressure } };
+        return _supportedDistributedLoadTypes;
+      }
+      else {
+        static const std::unordered_map< std::string, int > _supportedDistributedLoadTypes =
+          { { "PRESSURE", DisplacementParticle< nDim, section >::Pressure },
+            { "CWFCORRECTION", DisplacementParticle< nDim, section >::CWFCorrection } };
+        return _supportedDistributedLoadTypes;
+      }
     };
 
     /**
@@ -230,11 +258,15 @@ namespace Marmot::Discretizations::Meshfree {
      * @brief Computes the deformed volume of the particle.
      * @return The deformed volume, calculated as undeformed volume multiplied by the determinant of the deformation
      * gradient @f$ \boldsymbol{F}_n @f$ of the last accepted state (i.e., the volume in the intermediate
-     * configuration).
+     * configuration); for an axisymmetric particle the ring volume of its geometry.
      */
     virtual double getVolumeDeformed() const
     {
-      return this->getVolumeUndeformed() * Fastor::determinant( this->dY_dX() );
+      if constexpr ( SectionIntegrals::isAxisymmetric )
+        return SectionIntegrals::volume(
+          typename ParticleDomainType::LagrangeCellType( _particleDomain.getGeometryDeformedVertexCoordinates() ) );
+      else
+        return this->getVolumeUndeformed() * Fastor::determinant( this->dY_dX() );
     }
 
     /**
@@ -271,27 +303,20 @@ namespace Marmot::Discretizations::Meshfree {
       Eigen::Matrix< double, nDim, 1 > coords;
       this->getCenterCoordinates( coords.data() ); // Uses DisplacementParticleSQCNI's getCenterCoordinates
 
-      this->_N     = Eigen::MatrixXd::Zero( 1, this->_nNodes );
-      this->_dN_dY = Eigen::MatrixXd::Zero( nDim, this->_nNodes );
+      this->_N = Eigen::MatrixXd::Zero( 1, this->_nNodes );
 
       // Compute N at the particle center (from GenericParticle)
       this->_meshfreeApproximation.computeShapeFunctions( coords.data(),
                                                           this->_assignedKernelFunctions,
                                                           this->_N.data() );
 
-      // Compute dN_dY using the SQCNI approach (boundary integral over smoothing domain)
-      Eigen::MatrixXd smooth_NBoundary( 1, this->_nNodes );
-      for ( int i = 0; i < _particleDomain.getNumberOfFaces(); i++ ) {
-
-        auto smoothing_evaluation_point = _particleDomain.getSmoothingDomainFaceCenterCoordinates( i + 1 );
-        auto smoothing_n_dA             = _particleDomain.getSmoothingBoundarySurfaceVector( i + 1 );
-
-        this->_meshfreeApproximation.computeShapeFunctions( smoothing_evaluation_point.data(),
-                                                            this->_assignedKernelFunctions,
-                                                            smooth_NBoundary.data() );
-        this->_dN_dY += smoothing_n_dA * smooth_NBoundary;
-      }
-      this->_dN_dY /= _particleDomain.getSmoothingVolume();
+      // the smoothed gradients over the smoothing domain, in the section
+      SectionIntegrals::smoothShapeFunctionGradients( smoothingDomain(),
+                                                      this->_meshfreeApproximation,
+                                                      this->_assignedKernelFunctions,
+                                                      this->_N,
+                                                      this->_dN_dY,
+                                                      nullptr );
 
       this->_T     = this->_N;
       this->_dT_dY = this->_dN_dY;
@@ -337,7 +362,8 @@ namespace Marmot::Discretizations::Meshfree {
 
     /**
      * @brief Retrieves the boundary surface vector and the face center coordinates in the intermediate configuration.
-     * @details The boundary vector @f$ \boldsymbol{N}\,dA_Y @f$ is that of the face of the particle geometry. The
+     * @details The boundary vector @f$ \boldsymbol{N}\,dA_Y @f$ is that of the face of the particle geometry (for an
+     * axisymmetric particle that of its ring, times @f$ 2\pi r @f$ of the evaluation point). The
      * evaluation point is the face center of the smoothing domain for the update type DeformationGradient (SQCNI),
      * and the face center of the particle geometry otherwise.
      * @param[in] boundaryFaceID The ID of the boundary face.
@@ -371,7 +397,13 @@ namespace Marmot::Discretizations::Meshfree {
      * displacements will be accumulated.
      * @param[in] timeNew The current time.
      * @param[in] dT The time increment.
-     * @throws std::invalid_argument if an invalid DistributedLoad type is specified.
+     * For an axisymmetric particle, @f$ \boldsymbol{N}\,dA_Y @f$ is the surface vector of the ring, the pressure force
+     * includes the hoop stretch increment @f$ \Delta F_{\theta\theta} @f$ of the particle (the 3D Nanson formula),
+     * which adds @f$ f_j N_B / (\bar r\,\Delta F_{\theta\theta}) @f$ to the tangent with respect to the radial
+     * increment of node B, and CWFCorrection is not available.
+     *
+     * @throws std::invalid_argument if an invalid DistributedLoad type is specified, and for CWFCorrection of an
+     * axisymmetric particle.
      */
     void computeDistributedLoad( int           type,
                                  int           surfaceID,
@@ -400,8 +432,8 @@ namespace Marmot::Discretizations::Meshfree {
                                          double        dT ) const override;
   };
 
-  template < int nDim, int nVertices >
-  DisplacementParticleSQCNI< nDim, nVertices >::DisplacementParticleSQCNI(
+  template < int nDim, int nVertices, Section section >
+  DisplacementParticleSQCNI< nDim, nVertices, section >::DisplacementParticleSQCNI(
     int                  elementID,
     const double*        vertexCoordinates,
     int                  nVertexCoordinates,
@@ -411,21 +443,29 @@ namespace Marmot::Discretizations::Meshfree {
     int                  sizeMaterialProperties,
     const Approximation& approximation,
     const typename ParticleDomainType::SmoothingDomainUpdateType smoothingVolumeUpdateType )
-    : DisplacementParticle< nDim >( elementID,
-                                    ParticleDomainType::getCenterFromVertices(
-                                      Eigen::Map< const Eigen::Matrix< double, nDim, nVertices > >(
-                                        vertexCoordinates ) )
-                                      .data(),
-                                    ParticleDomainType::CoordinatesSized::RowsAtCompileTime,
-                                    ParticleDomainType::getVolumeFromVertices(
-                                      Eigen::Map< const Eigen::Matrix< double, nDim, nVertices > >(
-                                        vertexCoordinates ) ),
-                                    materialName,
-                                    materialProperties,
-                                    sizeMaterialProperties,
-                                    approximation ),
+    : DisplacementParticle< nDim, section >( elementID,
+                                             ParticleDomainType::getCenterFromVertices(
+                                               Eigen::Map< const Eigen::Matrix< double, nDim, nVertices > >(
+                                                 vertexCoordinates ) )
+                                               .data(),
+                                             ParticleDomainType::CoordinatesSized::RowsAtCompileTime,
+                                             SectionIntegrals::volume( typename ParticleDomainType::LagrangeCellType(
+                                               Eigen::Map< const Eigen::Matrix< double, nDim, nVertices > >(
+                                                 vertexCoordinates ) ) ),
+                                             materialName,
+                                             materialProperties,
+                                             sizeMaterialProperties,
+                                             approximation ),
       _particleDomain( vertexCoordinates, nVertexCoordinates, smoothingVolumeUpdateType )
   {
+    if constexpr ( SectionIntegrals::isAxisymmetric ) {
+      SectionIntegrals::checkDomain( smoothingDomain(), elementID );
+      if ( smoothingVolumeUpdateType != ParticleDomainType::SmoothingDomainUpdateType::DeformationGradient )
+        throw std::invalid_argument( Marmot::Utilities::MakeString()
+                                     << __PRETTY_FUNCTION__
+                                     << ": an axisymmetric particle needs the smoothing domain update "
+                                        "DeformationGradient, whose smoothing domains tile the body" );
+    }
     if ( volume != 0 ) {
       throw std::
         invalid_argument( Marmot::Utilities::MakeString()
@@ -435,19 +475,24 @@ namespace Marmot::Discretizations::Meshfree {
     }
   }
 
-  template < int nDim, int nVertices >
-  void DisplacementParticleSQCNI< nDim, nVertices >::computeDistributedLoad( int           type,
-                                                                             int           boundaryFaceID,
-                                                                             const double* load_,
-                                                                             double*       fExt,
-                                                                             double*       dFExt_ddQ,
-                                                                             double        timeNew,
-                                                                             double        dT ) const
+  template < int nDim, int nVertices, Section section >
+  void DisplacementParticleSQCNI< nDim, nVertices, section >::computeDistributedLoad( int           type,
+                                                                                      int           boundaryFaceID,
+                                                                                      const double* load_,
+                                                                                      double*       fExt,
+                                                                                      double*       dFExt_ddQ,
+                                                                                      double        timeNew,
+                                                                                      double        dT ) const
   {
+
+    if ( SectionIntegrals::isAxisymmetric && type == DisplacementParticle< nDim, section >::CWFCorrection )
+      throw std::invalid_argument( Marmot::Utilities::MakeString()
+                                   << __PRETTY_FUNCTION__
+                                   << ": CWFCORRECTION is not available for an axisymmetric particle" );
 
     switch ( type ) {
 
-    case DisplacementParticle< nDim >::Pressure: {
+    case DisplacementParticle< nDim, section >::Pressure: {
 
       const auto&   _nNodes       = this->_nNodes; // From GenericParticle
       constexpr int nodeBlockSize = nDim;
@@ -472,12 +517,22 @@ namespace Marmot::Discretizations::Meshfree {
       const Tensor< double, nDim, nDim > deltaFInv = inverse( deltaF );
       const double                       deltaJ    = determinant( deltaF );
 
-      const TensorD f = deltaJ * transpose( deltaFInv ) % fY;
+      TensorD f = deltaJ * transpose( deltaFInv ) % fY;
 
       const Tensor< double, nDim, nDim, nDim, nDim > dFInv_dF = -einsum< Ik, Ki, to_IikK >( deltaFInv, deltaFInv );
 
-      const Tensor< double, nDim, nDim, nDim > df_dDeltaF = outer( f, transpose( deltaFInv ) ) +
-                                                            deltaJ * einsum< IikK, Index< I_ > >( dFInv_dF, fY );
+      Tensor< double, nDim, nDim, nDim > df_dDeltaF = outer( f, transpose( deltaFInv ) ) +
+                                                      deltaJ * einsum< IikK, Index< I_ > >( dFInv_dF, fY );
+
+      // the ring of the face grows with the hoop stretch of the particle: Nanson's formula with the 3D increment,
+      // whose Jacobian is deltaJ * deltaF_33, and d deltaF_33 / d du_r = 1 / r of the center
+      [[maybe_unused]] double r = 1.0, deltaF33 = 1.0;
+      if constexpr ( SectionIntegrals::isAxisymmetric ) {
+        r        = this->radiusOfCenter();
+        deltaF33 = this->_mp->outOfPlaneStretch();
+        f *= deltaF33;
+        df_dDeltaF *= deltaF33;
+      }
 
       TensorD r_U( 0.0 );
 
@@ -508,12 +563,16 @@ namespace Marmot::Discretizations::Meshfree {
             K.template block< nDim, nDim >( idxA_u, idxB_u ) -= Map< Matrix< double, nDim, nDim > >(
               torowmajor( df_ddQU_B ).data() );
           }
+
+          if constexpr ( SectionIntegrals::isAxisymmetric )
+            for ( int i = 0; i < nDim; i++ )
+              K( idxA_u + i, idxB_u ) -= testBoundary( A ) * f( i ) * this->_N( B ) / ( r * deltaF33 );
         }
       }
 
       break;
     }
-    case DisplacementParticle< nDim >::CWFCorrection: {
+    case DisplacementParticle< nDim, section >::CWFCorrection: {
       const auto&   _mp           = this->_mp;
       const auto&   _nNodes       = this->_nNodes;
       constexpr int nodeBlockSize = nDim;
@@ -625,17 +684,17 @@ namespace Marmot::Discretizations::Meshfree {
     }
   }
 
-  template < int nDim, int nVertices >
-  void DisplacementParticleSQCNI< nDim, nVertices >::computeDistributedLoadExplicit( int           type,
-                                                                                     int           boundaryFaceID,
-                                                                                     const double* load,
-                                                                                     double*       fExt,
-                                                                                     double        timeNew,
-                                                                                     double        dT ) const
+  template < int nDim, int nVertices, Section section >
+  void DisplacementParticleSQCNI< nDim, nVertices, section >::computeDistributedLoadExplicit( int type,
+                                                                                              int boundaryFaceID,
+                                                                                              const double* load,
+                                                                                              double*       fExt,
+                                                                                              double        timeNew,
+                                                                                              double        dT ) const
   {
     switch ( type ) {
 
-    case DisplacementParticle< nDim >::Pressure: {
+    case DisplacementParticle< nDim, section >::Pressure: {
 
       const auto&   _nNodes       = this->_nNodes; // From GenericParticle
       constexpr int nodeBlockSize = nDim;
@@ -659,7 +718,11 @@ namespace Marmot::Discretizations::Meshfree {
       const Tensor< double, nDim, nDim > deltaFInv = inverse( deltaF );
       const double                       deltaJ    = determinant( deltaF );
 
-      const TensorD f = deltaJ * transpose( deltaFInv ) % fY;
+      TensorD f = deltaJ * transpose( deltaFInv ) % fY;
+
+      // the ring of the face grows with the hoop stretch of the particle (see computeDistributedLoad())
+      if constexpr ( SectionIntegrals::isAxisymmetric )
+        f *= this->_mp->outOfPlaneStretch();
 
       TensorD r_U( 0.0 );
 
@@ -689,10 +752,10 @@ namespace Marmot::Discretizations::Meshfree {
     }
   }
 
-  template < int nDim, int nVertices >
-  std::tuple< typename DisplacementParticleSQCNI< nDim, nVertices >::TensorD,
-              typename DisplacementParticleSQCNI< nDim, nVertices >::TensorD >
-  DisplacementParticleSQCNI< nDim, nVertices >::getBoundaryVectorIntermediate( int boundaryFaceID ) const
+  template < int nDim, int nVertices, Section section >
+  std::tuple< typename DisplacementParticleSQCNI< nDim, nVertices, section >::TensorD,
+              typename DisplacementParticleSQCNI< nDim, nVertices, section >::TensorD >
+  DisplacementParticleSQCNI< nDim, nVertices, section >::getBoundaryVectorIntermediate( int boundaryFaceID ) const
   {
 
     TensorD N_dAY;
@@ -715,6 +778,9 @@ namespace Marmot::Discretizations::Meshfree {
       N_dAY[i] = _N_dAY_eigen[i];
       Y[i]     = _Y_eigen[i];
     }
+
+    if constexpr ( SectionIntegrals::isAxisymmetric )
+      N_dAY *= SectionIntegrals::weight( _Y_eigen );
 
     return { N_dAY, Y };
   }

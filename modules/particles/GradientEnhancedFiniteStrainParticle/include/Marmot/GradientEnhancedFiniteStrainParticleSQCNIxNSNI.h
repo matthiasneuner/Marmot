@@ -85,16 +85,25 @@ namespace Marmot::Discretizations::Meshfree {
    * therefore has no stabilization contribution at all. The nonlocal rows are exact; the module test bounds the
    * error of the U-U block and does not check the U-N block for this particle.
    *
-   * @tparam nDim      Spatial dimension (2: plane strain, 3: 3D).
+   * For an axisymmetric particle, the second gradients are smoothed over the ring and the second moments are those of
+   * the ring (ParticleSection); the first-order terms of the ring's expansion are left out, see the page "Axisymmetric
+   * Particles" of the documentation.
+   *
+   * @tparam nDim      Spatial dimension (2: plane strain or axisymmetric, 3: 3D).
    * @tparam nVertices Number of vertices of the smoothing domain (4: Quad, 8: Hexa).
    * @tparam nNonlocal Number of nonlocal variables (1: a scalar nonlocal damage driver, 6: a nonlocal strain).
+   * @tparam section   The section (Section::Cartesian: plane strain or 3D; Section::Axisymmetric: nDim = 2).
    */
-  template < int nDim, int nVertices, int nNonlocal >
+  template < int nDim, int nVertices, int nNonlocal, Section section = Section::Cartesian >
   class GradientEnhancedFiniteStrainParticleSQCNIxNSNI
-    : public GradientEnhancedFiniteStrainParticleSQCNI< nDim, nVertices, nNonlocal > {
+    : public GradientEnhancedFiniteStrainParticleSQCNI< nDim, nVertices, nNonlocal, section > {
 
-    using ParentPointParticle = GradientEnhancedFiniteStrainParticle< nDim, nNonlocal >; ///< point particle base
-    using ParentSQCNIParticle = GradientEnhancedFiniteStrainParticleSQCNI< nDim, nVertices, nNonlocal >; ///< SQCNI base
+    using ParentPointParticle = GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >; ///< point particle
+                                                                                                  ///< base
+    using ParentSQCNIParticle = GradientEnhancedFiniteStrainParticleSQCNI< nDim,
+                                                                           nVertices,
+                                                                           nNonlocal,
+                                                                           section >; ///< SQCNI base
     using LagrangeCellType    = ParentSQCNIParticle::LagrangeCellType;   ///< geometry of the smoothing domain
 
     using TensorD    = Fastor::Tensor< double, nDim >;                   ///< vector of size nDim
@@ -202,7 +211,7 @@ namespace Marmot::Discretizations::Meshfree {
     /**
      * @brief Assign the kernel functions and compute the smoothed first and second shape function derivatives.
      *
-     * One boundary integration over the current smoothing domain (one point per face) gives both
+     * One boundary integration over the current smoothing domain (ParticleSection) gives both
      * @f$ \partial N_B/\partial\boldsymbol{Y} @f$ (from @f$ N_B @f$ at the face centers) and the second derivatives
      * (from @f$ \partial N_B/\partial\boldsymbol{Y} @f$ at the face centers).
      *
@@ -214,50 +223,24 @@ namespace Marmot::Discretizations::Meshfree {
       ParentPointParticle::_assignedKernelFunctions = kernelFunctions;
 
       ParentPointParticle::_nNodes = static_cast< int >(
-        GradientEnhancedFiniteStrainParticle< nDim, nNonlocal >::_assignedKernelFunctions.size() );
+        GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >::_assignedKernelFunctions.size() );
 
       Eigen::Matrix< double, nDim, 1 > coords;
       ParentPointParticle::_mp.getCoordinatesAtCenter( coords.data() );
 
-      Eigen::Matrix< double, nDim, nVertices > vertexCoordinates;
-      this->getSmoothingDomainVertexCoordinates( vertexCoordinates.data() );
-
-      ParentPointParticle::_N     = Eigen::MatrixXd::Zero( 1, ParentPointParticle::_nNodes );
-      ParentPointParticle::_dN_dY = Eigen::MatrixXd::Zero( nDim, ParentPointParticle::_nNodes );
-      for ( int i = 0; i < nDim; i++ )
-        _d2N_dYdY[i] = Eigen::MatrixXd::Zero( nDim, ParentPointParticle::_nNodes );
+      ParentPointParticle::_N = Eigen::MatrixXd::Zero( 1, ParentPointParticle::_nNodes );
 
       ParentPointParticle::_meshfreeApproximation.computeShapeFunctions( coords.data(),
                                                                          ParentPointParticle::_assignedKernelFunctions,
                                                                          ParentPointParticle::_N.data() );
 
-      Eigen::MatrixXd NBoundary( 1, ParentPointParticle::_nNodes );
-      Eigen::MatrixXd dN_dY_Boundary = Eigen::MatrixXd::Zero( nDim, ParentPointParticle::_nNodes );
-
-      const LagrangeCellType cell( vertexCoordinates.data(), nDim * nVertices );
-
-      for ( int i = 0; i < cell.getNumberOfFaces(); i++ ) {
-
-        const Eigen::Matrix< double, nDim, 1 > n_dA       = cell.boundarySurfaceVector( i + 1 );
-        const Eigen::Matrix< double, nDim, 1 > faceCenter = cell.getFaceCenterCoordinates( i + 1 );
-
-        ParentPointParticle::_meshfreeApproximation
-          .computeShapeFunctionsAndGradients( faceCenter.data(),
-                                              ParentPointParticle::_assignedKernelFunctions,
-                                              NBoundary.data(),
-                                              dN_dY_Boundary.data() );
-
-        ParentPointParticle::_dN_dY += n_dA * NBoundary;
-
-        for ( int j = 0; j < nDim; j++ )
-          _d2N_dYdY[j] += n_dA( j ) * dN_dY_Boundary;
-      }
-
-      const double VSmoothing = cell.volume();
-      ParentPointParticle::_dN_dY /= VSmoothing;
-      for ( int i = 0; i < nDim; i++ ) {
-        _d2N_dYdY[i] /= VSmoothing;
-      }
+      ParentSQCNIParticle::SectionIntegrals::
+        smoothShapeFunctionGradients( this->_makeSmoothingDomainCell(),
+                                      ParentPointParticle::_meshfreeApproximation,
+                                      ParentPointParticle::_assignedKernelFunctions,
+                                      ParentPointParticle::_N,
+                                      ParentPointParticle::_dN_dY,
+                                      &_d2N_dYdY );
 
       ParentPointParticle::_T     = ParentPointParticle::_N;
       ParentPointParticle::_dT_dY = ParentPointParticle::_dN_dY;
@@ -321,8 +304,8 @@ namespace Marmot::Discretizations::Meshfree {
     };
   };
 
-  template < int nDim, int nVertices, int nNonlocal >
-  GradientEnhancedFiniteStrainParticleSQCNIxNSNI< nDim, nVertices, nNonlocal >::
+  template < int nDim, int nVertices, int nNonlocal, Section section >
+  GradientEnhancedFiniteStrainParticleSQCNIxNSNI< nDim, nVertices, nNonlocal, section >::
     GradientEnhancedFiniteStrainParticleSQCNIxNSNI(
       int                                                     elementID,
       const double*                                           vertexCoordinates,
@@ -333,20 +316,21 @@ namespace Marmot::Discretizations::Meshfree {
       int                                                     sizeMaterialProperties,
       const Marmot::Discretizations::Meshfree::Approximation& approximation,
       ParentSQCNIParticle::SmoothingDomainUpdateType          smoothingVolumeUpdateType )
-    : GradientEnhancedFiniteStrainParticleSQCNI< nDim, nVertices, nNonlocal >( elementID,
-                                                                               vertexCoordinates,
-                                                                               nVertexCoordinates,
-                                                                               volume,
-                                                                               materialName,
-                                                                               materialProperties,
-                                                                               sizeMaterialProperties,
-                                                                               approximation,
-                                                                               smoothingVolumeUpdateType )
+    : GradientEnhancedFiniteStrainParticleSQCNI< nDim, nVertices, nNonlocal, section >( elementID,
+                                                                                        vertexCoordinates,
+                                                                                        nVertexCoordinates,
+                                                                                        volume,
+                                                                                        materialName,
+                                                                                        materialProperties,
+                                                                                        sizeMaterialProperties,
+                                                                                        approximation,
+                                                                                        smoothingVolumeUpdateType )
   {
     // second moments of the undeformed particle domain about its centroid
     // (for an affinely mapped cell this is identical to the former
     // detJ * 16/12 * J J^T quad formula)
-    const Eigen::Matrix< double, nDim, nDim > secondMoments = this->_makeUndeformedCell().secondMoments();
+    const Eigen::Matrix< double, nDim, nDim > secondMoments = ParentSQCNIParticle::SectionIntegrals::secondMoments(
+      this->_makeUndeformedCell() );
 
     for ( int i = 0; i < nDim; i++ )
       for ( int j = 0; j < nDim; j++ )
@@ -357,8 +341,8 @@ namespace Marmot::Discretizations::Meshfree {
     _momentsOfInertia_IntermediateReference = _momentsOfInertia_Undeformed;
   }
 
-  template < int nDim, int nVertices, int nNonlocal >
-  void GradientEnhancedFiniteStrainParticleSQCNIxNSNI< nDim, nVertices, nNonlocal >::computePhysicsKernels(
+  template < int nDim, int nVertices, int nNonlocal, Section section >
+  void GradientEnhancedFiniteStrainParticleSQCNIxNSNI< nDim, nVertices, nNonlocal, section >::computePhysicsKernels(
     const double* dQ,
     double*       fInt,
     double*       dFInt_ddQ,
@@ -392,9 +376,7 @@ namespace Marmot::Discretizations::Meshfree {
     this->interpolateIncrement( dQ, du, du_dY, dn, dn_dY );
     const TensorDDD d2x_dYdY = interpolateSecondGradientOfIncrement( dQ );
 
-    _mp.prepareYourself( timeNew, dT );
-    _mp.incrementDeformation( du, du_dY, dn, dn_dY );
-    _mp.computeYourself( timeNew, dT );
+    this->evaluateMaterialPoint( du, du_dY, dn, dn_dY, timeNew, dT );
 
     const double density0 = _mp.getDensityUndeformed();
 
@@ -456,6 +438,9 @@ namespace Marmot::Discretizations::Meshfree {
 
       r_U = ( +einsum< i, ij >( dT_A_dx, S ) ) * V0;
 
+      if constexpr ( ParentPointParticle::isAxisymmetric )
+        r_U( 0 ) += Hoop::force( T_A, this->radiusOfCenter(), _mp.outOfPlaneStretch(), _mp.response.tau33, V0 );
+
       // add inertia
       r_U += density0 * a * T_A * V0;
 
@@ -493,8 +478,8 @@ namespace Marmot::Discretizations::Meshfree {
     }
   }
 
-  template < int nDim, int nVertices, int nNonlocal >
-  void GradientEnhancedFiniteStrainParticleSQCNIxNSNI< nDim, nVertices, nNonlocal >::addStiffnessOfNode(
+  template < int nDim, int nVertices, int nNonlocal, Section section >
+  void GradientEnhancedFiniteStrainParticleSQCNIxNSNI< nDim, nVertices, nNonlocal, section >::addStiffnessOfNode(
     int                                         A,
     const Fastor::Tensor< double, nDim, nDim >& dY_dx,
     StiffnessOfNode< nDim, nDim + nNonlocal >&  ofNode ) const
@@ -505,11 +490,12 @@ namespace Marmot::Discretizations::Meshfree {
                                          ofNode );
   }
 
-  template < int nDim, int nVertices, int nNonlocal >
-  typename GradientEnhancedFiniteStrainParticleSQCNIxNSNI< nDim, nVertices, nNonlocal >::TensorDDD GradientEnhancedFiniteStrainParticleSQCNIxNSNI<
+  template < int nDim, int nVertices, int nNonlocal, Section section >
+  typename GradientEnhancedFiniteStrainParticleSQCNIxNSNI< nDim, nVertices, nNonlocal, section >::TensorDDD GradientEnhancedFiniteStrainParticleSQCNIxNSNI<
     nDim,
     nVertices,
-    nNonlocal >::interpolateSecondGradientOfIncrement( const double* dQ ) const
+    nNonlocal,
+    section >::interpolateSecondGradientOfIncrement( const double* dQ ) const
   {
     using namespace Marmot::Math::Tensors::FastorIndices;
     using namespace Fastor;
@@ -523,8 +509,8 @@ namespace Marmot::Discretizations::Meshfree {
     return d2x_dYdY;
   }
 
-  template < int nDim, int nVertices, int nNonlocal >
-  void GradientEnhancedFiniteStrainParticleSQCNIxNSNI< nDim, nVertices, nNonlocal >::updatePhysicsExplicit(
+  template < int nDim, int nVertices, int nNonlocal, Section section >
+  void GradientEnhancedFiniteStrainParticleSQCNIxNSNI< nDim, nVertices, nNonlocal, section >::updatePhysicsExplicit(
     const double* dQ,
     double        timeNew,
     double        dT )
@@ -541,9 +527,9 @@ namespace Marmot::Discretizations::Meshfree {
     _dv_dY = ( this->_mp.dx_dY() - I ) / dT;
   }
 
-  template < int nDim, int nVertices, int nNonlocal >
-  void GradientEnhancedFiniteStrainParticleSQCNIxNSNI< nDim, nVertices, nNonlocal >::computePhysicsKernelsExplicit(
-    double* fInt )
+  template < int nDim, int nVertices, int nNonlocal, Section section >
+  void GradientEnhancedFiniteStrainParticleSQCNIxNSNI< nDim, nVertices, nNonlocal, section >::
+    computePhysicsKernelsExplicit( double* fInt )
   {
     using namespace Marmot::Math::Tensors::FastorIndices;
     using namespace Fastor;
@@ -569,8 +555,8 @@ namespace Marmot::Discretizations::Meshfree {
     }
   }
 
-  template < int nDim, int nVertices, int nNonlocal >
-  void GradientEnhancedFiniteStrainParticleSQCNIxNSNI< nDim, nVertices, nNonlocal >::computeLumpedMomentum(
+  template < int nDim, int nVertices, int nNonlocal, Section section >
+  void GradientEnhancedFiniteStrainParticleSQCNIxNSNI< nDim, nVertices, nNonlocal, section >::computeLumpedMomentum(
     double* pLumped ) const
   {
     using namespace Marmot::Math::Tensors::FastorIndices;

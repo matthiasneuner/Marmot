@@ -29,6 +29,7 @@
 #include "Marmot/MarmotMeshfreeApproximation.h"
 #include "Marmot/MarmotMonomialBasisFunctions.h"
 #include "Marmot/MarmotParticle.h"
+#include "Marmot/MarmotParticleSection.h"
 #include "Marmot/MarmotParticleStiffness.h"
 #include "Marmot/MarmotTensor.h"
 #include "Marmot/MarmotUtils.h"
@@ -108,13 +109,26 @@ namespace Marmot::Discretizations::Meshfree {
    * for boundary loads. computeBodyLoad() applies a body force per unit undeformed volume, also for the derived
    * particles. The loads exist in the implicit form only; the explicit variants are those of Particle, which throw.
    *
-   * @tparam nDim      Spatial dimension (2: plane strain, 3: 3D).
+   * **Axisymmetric section.** With @p section = Section::Axisymmetric, the particle lives in the meridian half plane
+   * @f$ (r, z) @f$: @f$ V_0 @f$ is the undeformed ring volume, the material point sees the hoop stretch increment
+   * @f$ \Delta F_{\theta\theta} = 1 + \Delta u_r / \bar r @f$ as its out-of-plane stretch, and the radial force gains
+   * the hoop term @f$ T_A\, \tau_{\theta\theta} / (\bar r\, \Delta F_{\theta\theta})\, V_0 @f$ (Hoop), with its
+   * tangent. VCI is not available for it. See the page "Axisymmetric Particles" of the documentation.
+   *
+   * @tparam nDim      Spatial dimension (2: plane strain or axisymmetric, 3: 3D).
    * @tparam nNonlocal Number of nonlocal variables (1: a scalar nonlocal damage driver, 6: a nonlocal strain).
+   * @tparam section   The section (Section::Cartesian: plane strain or 3D; Section::Axisymmetric: nDim = 2).
    */
-  template < int nDim, int nNonlocal >
+  template < int nDim, int nNonlocal, Section section = Section::Cartesian >
   class GradientEnhancedFiniteStrainParticle : public Marmot::Discretizations::Meshfree::Particle {
 
+    static_assert( section == Section::Cartesian || nDim == 2,
+                   "an axisymmetric particle lives in the meridian half plane: nDim = 2" );
+
   protected:
+    /// the particle is axisymmetric
+    static constexpr bool isAxisymmetric = section == Section::Axisymmetric;
+
     Eigen::Matrix< double, nDim, 1 > _centerCoordinatesUndeformed; ///< center @f$ \boldsymbol{X}_c @f$, undeformed
     Eigen::Matrix< double, nDim, 1 > _centerReferenceIntermediate; ///< center in the intermediate reference
                                                                    ///< configuration @f$ \boldsymbol{Y} @f$
@@ -586,8 +600,18 @@ namespace Marmot::Discretizations::Meshfree {
     /**
      * @brief Number of VCI constraints (monomials) per node and direction.
      * @return _nVCIConstraints.
+     * @throws std::invalid_argument for an axisymmetric particle, which has no VCI: a host that asks for it is refused.
      */
-    int vci_getNumberOfConstraints() override { return _nVCIConstraints; }
+    int vci_getNumberOfConstraints() override
+    {
+      if constexpr ( isAxisymmetric )
+        throw std::invalid_argument( Marmot::Utilities::MakeString()
+                                     << __PRETTY_FUNCTION__
+                                     << ": VCI is not available for an axisymmetric particle; its ring-weighted "
+                                        "smoothing satisfies the linear integration constraint by itself" );
+      else
+        return _nVCIConstraints;
+    }
 
     /**
      * @brief Add the boundary term @f$ T_A\,P_C\,n_i\,dA_Y @f$ of the VCI integration constraint.
@@ -731,7 +755,8 @@ namespace Marmot::Discretizations::Meshfree {
      *   \frac{\partial f^N_{AK}}{\partial (\partial \Delta\bar{N}_K / \partial Y_l)} = V_0\, c_K
      *   \frac{\partial T_A}{\partial X_i} \frac{\partial Y_l}{\partial X_i}.
      * @f]
-     * Derived particles add their own terms (e.g. a stabilization).
+     * An axisymmetric particle adds the hoop terms (addHoopStiffnessOfNode()). Derived particles add their own terms
+     * (e.g. a stabilization).
      * @param[in] A The node.
      * @param[in] dY_dx The inverse of the gradient of the motion of the particle, @f$ \partial Y / \partial x @f$,
      * the same for all its nodes: computed once per particle by the caller.
@@ -761,6 +786,51 @@ namespace Marmot::Discretizations::Meshfree {
                                NonlocalVector&                                          dn,
                                std::array< Fastor::Tensor< double, nDim >, nNonlocal >& dn_dY ) const;
 
+    /**
+     * @brief Evaluate the material point for an interpolated increment: reset it to the accepted state, add the
+     * increment (and, for an axisymmetric particle, the hoop stretch increment @f$ \Delta u_r / \bar r @f$ of the
+     * center, refused if it pulls the ring through the axis, Hoop::checkStretchIncrement()), and compute its response
+     * and tangents.
+     * @param[in] du    @f$ \Delta\boldsymbol{u} @f$ at the center.
+     * @param[in] du_dY @f$ \partial\Delta\boldsymbol{u}/\partial\boldsymbol{Y} @f$.
+     * @param[in] dn    @f$ \Delta\bar{N}_K @f$.
+     * @param[in] dn_dY @f$ \partial\Delta\bar{N}_K/\partial\boldsymbol{Y} @f$.
+     * @param[in] timeNew Time at the end of the increment.
+     * @param[in] dT      Time increment.
+     */
+    void evaluateMaterialPoint( const Fastor::Tensor< double, nDim >&                          du,
+                                const Fastor::Tensor< double, nDim, nDim >&                    du_dY,
+                                const NonlocalVector&                                          dn,
+                                const std::array< Fastor::Tensor< double, nDim >, nNonlocal >& dn_dY,
+                                double                                                         timeNew,
+                                double                                                         dT );
+
+    /**
+     * @brief The radius of the particle center in the intermediate reference configuration, where the shape
+     * functions are evaluated.
+     * @return @f$ \bar r = Y_1 @f$ (axisymmetric particles).
+     */
+    double radiusOfCenter() const
+    {
+      std::array< double, nDim > center;
+      _mp.getCoordinatesAtCenter( center.data() );
+      return center[0];
+    }
+
+    /**
+     * @brief Add the hoop terms of the axisymmetric section to the stiffness of node @p A (nothing for the Cartesian
+     * section): those of the displacement rows (Hoop::addStiffnessOfNode()) and the couplings of the hoop stretch with
+     * the nonlocal fields, @f$ \partial f^U_{Ar}/\partial\Delta\bar{N}_K \mathrel{+}= T_A V_0 / (\bar r\, \Delta
+     * F_{\theta\theta})\, \partial\tau_{\theta\theta}/\partial\bar{N}_K @f$ and @f$ \partial f^N_{AK}/\partial\Delta
+     * u_r \mathrel{+}= -T_A V_0 / \bar r\, \partial L_K/\partial\Delta F_{\theta\theta} @f$.
+     * @param[in] A The node.
+     * @param[in] dT_A_dx The spatial gradient of its test function.
+     * @param[in,out] ofNode The derivatives; the hoop terms are added.
+     */
+    void addHoopStiffnessOfNode( int                                        A,
+                                 const Fastor::Tensor< double, nDim >&      dT_A_dx,
+                                 StiffnessOfNode< nDim, nDim + nNonlocal >& ofNode ) const;
+
   private:
     /// @brief Set the center in the intermediate reference configuration to the accepted material point position.
     virtual void updateParticlePositionToReferenceIntermediate()
@@ -777,9 +847,13 @@ namespace Marmot::Discretizations::Meshfree {
     /**
      * @brief Set the VCI order, size the monomial basis and evaluate it at the current center.
      * @param[in] order Polynomial order of the VCI basis.
+     * @throws std::invalid_argument for an order other than 0 of an axisymmetric particle.
      */
     void setVCIOrder( int order )
     {
+      if ( isAxisymmetric && order != 0 )
+        throw std::invalid_argument( Marmot::Utilities::MakeString()
+                                     << __PRETTY_FUNCTION__ << ": VCI is not available for an axisymmetric particle" );
       _vciOrder = order;
       // number of monomials of degree <= order in nDim variables
       _nVCIConstraints = nDim == 2 ? ( order + 1 ) * ( order + 2 ) / 2
@@ -807,8 +881,8 @@ namespace Marmot::Discretizations::Meshfree {
     };
   };
 
-  template < int nDim, int nNonlocal >
-  Marmot::Utilities::StateView GradientEnhancedFiniteStrainParticle< nDim, nNonlocal >::getStateView(
+  template < int nDim, int nNonlocal, Section section >
+  Marmot::Utilities::StateView GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >::getStateView(
     const std::string& stateName,
     int                qp ) const
   {
@@ -818,8 +892,8 @@ namespace Marmot::Discretizations::Meshfree {
     return _mp.getStateView( stateName );
   }
 
-  template < int nDim, int nNonlocal >
-  GradientEnhancedFiniteStrainParticle< nDim, nNonlocal >::GradientEnhancedFiniteStrainParticle(
+  template < int nDim, int nNonlocal, Section section >
+  GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >::GradientEnhancedFiniteStrainParticle(
     int                                                     elementID,
     const double*                                           centerCoordinates0,
     int                                                     sizeCenterCoordinates0,
@@ -847,19 +921,19 @@ namespace Marmot::Discretizations::Meshfree {
                                    << ", but got " << sizeCenterCoordinates0 );
     }
 
-    Marmot::Discretizations::MaterialSection section( materialName, materialProperties, nMaterialProperties );
+    Marmot::Discretizations::MaterialSection materialSection( materialName, materialProperties, nMaterialProperties );
 
-    _mp.assignMaterial( section );
+    _mp.assignMaterial( materialSection );
 
     this->setVCIOrder( _vciOrder );
   }
 
-  template < int nDim, int nNonlocal >
-  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal >::computePhysicsKernels( const double* dQ,
-                                                                                       double*       fInt,
-                                                                                       double*       dFInt_ddQ,
-                                                                                       double        timeNew,
-                                                                                       double        dT )
+  template < int nDim, int nNonlocal, Section section >
+  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >::computePhysicsKernels( const double* dQ,
+                                                                                                double*       fInt,
+                                                                                                double*       dFInt_ddQ,
+                                                                                                double        timeNew,
+                                                                                                double        dT )
   {
     using namespace Marmot::Math::Tensors::FastorIndices;
     using namespace Fastor;
@@ -871,10 +945,7 @@ namespace Marmot::Discretizations::Meshfree {
     NonlocalVector                                  dn;
     std::array< Tensor< double, nDim >, nNonlocal > dn_dY;
     interpolateIncrement( dQ, du, du_dY, dn, dn_dY );
-
-    _mp.prepareYourself( timeNew, dT );
-    _mp.incrementDeformation( du, du_dY, dn, dn_dY );
-    _mp.computeYourself( timeNew, dT );
+    evaluateMaterialPoint( du, du_dY, dn, dn_dY, timeNew, dT );
 
     const double density0 = _mp.getDensityUndeformed();
 
@@ -924,6 +995,9 @@ namespace Marmot::Discretizations::Meshfree {
 
       r_U = ( +einsum< i, ij >( dT_A_dx, S ) ) * V0;
 
+      if constexpr ( isAxisymmetric )
+        r_U( 0 ) += Hoop::force( T_A, radiusOfCenter(), _mp.outOfPlaneStretch(), _mp.response.tau33, V0 );
+
       // add inertia
       r_U += density0 * a * T_A * V0;
 
@@ -951,8 +1025,8 @@ namespace Marmot::Discretizations::Meshfree {
     }
   }
 
-  template < int nDim, int nNonlocal >
-  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal >::addStiffnessOfNode(
+  template < int nDim, int nNonlocal, Section section >
+  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >::addStiffnessOfNode(
     int                                         A,
     const Fastor::Tensor< double, nDim, nDim >& dY_dx,
     StiffnessOfNode< nDim, nDim + nNonlocal >&  ofNode ) const
@@ -1006,12 +1080,45 @@ namespace Marmot::Discretizations::Meshfree {
       for ( int M = 0; M < nNonlocal; M++ )
         ofNode.df_dIncrement( nK, nDim + M ) += V0 * T_A * ( ( K == M ? 1.0 : 0.0 ) - t.dL_dN( K, M ) );
     }
+
+    addHoopStiffnessOfNode( A, dT_A_dx, ofNode );
   }
 
-  template < int nDim, int nNonlocal >
-  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal >::describeStiffness( StiffnessVisitor& visitor,
-                                                                                   double            timeNew,
-                                                                                   double            dT )
+  template < int nDim, int nNonlocal, Section section >
+  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >::addHoopStiffnessOfNode(
+    [[maybe_unused]] int                                        A,
+    [[maybe_unused]] const Fastor::Tensor< double, nDim >&      dT_A_dx,
+    [[maybe_unused]] StiffnessOfNode< nDim, nDim + nNonlocal >& ofNode ) const
+  {
+    if constexpr ( isAxisymmetric ) {
+      const auto&  t        = _mp.tangents;
+      const double V0       = getVolumeUndeformed();
+      const double T_A      = _T( A );
+      const double r        = radiusOfCenter();
+      const double deltaF33 = _mp.outOfPlaneStretch();
+
+      Hoop::addStiffnessOfNode( T_A,
+                                dT_A_dx,
+                                r,
+                                deltaF33,
+                                V0,
+                                _mp.response.tau33,
+                                t.outOfPlane.dTau_dDeltaF33,
+                                t.outOfPlane.dTau33_dDeltaF,
+                                t.outOfPlane.dTau33_dDeltaF33,
+                                ofNode );
+
+      for ( int K = 0; K < nNonlocal; K++ ) {
+        ofNode.df_dIncrement( 0, nDim + K ) += T_A * V0 / ( r * deltaF33 ) * t.dTau33_dN( K );
+        ofNode.df_dIncrement( nDim + K, 0 ) -= T_A * V0 / r * t.dL_dDeltaF33( K );
+      }
+    }
+  }
+
+  template < int nDim, int nNonlocal, Section section >
+  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >::describeStiffness( StiffnessVisitor& visitor,
+                                                                                            double            timeNew,
+                                                                                            double            dT )
   {
     // what the evaluation changes is put back on return
     const SavedMaterialPoint saved( _mp );
@@ -1019,12 +1126,12 @@ namespace Marmot::Discretizations::Meshfree {
     // the material point at the current state: a zero increment
     std::array< Fastor::Tensor< double, nDim >, nNonlocal > dn_dY;
     dn_dY.fill( Fastor::Tensor< double, nDim >( 0.0 ) );
-    _mp.prepareYourself( timeNew, dT );
-    _mp.incrementDeformation( Fastor::Tensor< double, nDim >( 0.0 ),
-                              Fastor::Tensor< double, nDim, nDim >( 0.0 ),
-                              NonlocalVector::Zero(),
-                              dn_dY );
-    _mp.computeYourself( timeNew, dT );
+    evaluateMaterialPoint( Fastor::Tensor< double, nDim >( 0.0 ),
+                           Fastor::Tensor< double, nDim, nDim >( 0.0 ),
+                           NonlocalVector::Zero(),
+                           dn_dY,
+                           timeNew,
+                           dT );
 
     const Fastor::Tensor< double, nDim, nDim > dY_dx = inv( _mp.dx_dY() );
     describeStiffnessNodeByNode< nDim, nDim + nNonlocal >( visitor,
@@ -1037,8 +1144,8 @@ namespace Marmot::Discretizations::Meshfree {
                                                            } );
   }
 
-  template < int nDim, int nNonlocal >
-  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal >::interpolateIncrement(
+  template < int nDim, int nNonlocal, Section section >
+  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >::interpolateIncrement(
     const double*                                            dQ,
     Fastor::Tensor< double, nDim >&                          du,
     Fastor::Tensor< double, nDim, nDim >&                    du_dY,
@@ -1076,20 +1183,36 @@ namespace Marmot::Discretizations::Meshfree {
     }
   }
 
-  template < int nDim, int nNonlocal >
-  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal >::updatePhysicsExplicit( const double* dQ,
-                                                                                       double        timeNew,
-                                                                                       double        dT )
+  template < int nDim, int nNonlocal, Section section >
+  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >::evaluateMaterialPoint(
+    const Fastor::Tensor< double, nDim >&                          du,
+    const Fastor::Tensor< double, nDim, nDim >&                    du_dY,
+    const NonlocalVector&                                          dn,
+    const std::array< Fastor::Tensor< double, nDim >, nNonlocal >& dn_dY,
+    double                                                         timeNew,
+    double                                                         dT )
+  {
+    _mp.prepareYourself( timeNew, dT );
+    _mp.incrementDeformation( du, du_dY, dn, dn_dY );
+    if constexpr ( isAxisymmetric ) {
+      const double r = radiusOfCenter();
+      _mp.incrementOutOfPlaneStretch( du( 0 ) / r );
+      Hoop::checkStretchIncrement( _mp.outOfPlaneStretch(), r, _mp.getMaterialPointNumber() );
+    }
+    _mp.computeYourself( timeNew, dT );
+  }
+
+  template < int nDim, int nNonlocal, Section section >
+  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >::updatePhysicsExplicit( const double* dQ,
+                                                                                                double        timeNew,
+                                                                                                double        dT )
   {
     Fastor::Tensor< double, nDim >                          du;
     Fastor::Tensor< double, nDim, nDim >                    du_dY;
     NonlocalVector                                          dn;
     std::array< Fastor::Tensor< double, nDim >, nNonlocal > dn_dY;
     interpolateIncrement( dQ, du, du_dY, dn, dn_dY );
-
-    _mp.prepareYourself( timeNew, dT );
-    _mp.incrementDeformation( du, du_dY, dn, dn_dY );
-    _mp.computeYourself( timeNew, dT );
+    evaluateMaterialPoint( du, du_dY, dn, dn_dY, timeNew, dT );
 
     // a zero-length increment (the start of a step) leaves the rates as they are
     if ( dT <= 0.0 )
@@ -1102,8 +1225,8 @@ namespace Marmot::Discretizations::Meshfree {
     _mp.setNonlocalFieldRate( dn / dT );
   }
 
-  template < int nDim, int nNonlocal >
-  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal >::computePhysicsKernelsExplicit( double* fInt )
+  template < int nDim, int nNonlocal, Section section >
+  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >::computePhysicsKernelsExplicit( double* fInt )
   {
     using namespace Marmot::Math::Tensors::FastorIndices;
     using namespace Fastor;
@@ -1131,7 +1254,9 @@ namespace Marmot::Discretizations::Meshfree {
       const int idxA_u = nodeBlockSize * A;
       const int idxA_n = nodeBlockSize * A + nDim;
 
-      const Tensor< double, nDim > r_U = einsum< i, ij >( dT_A_dx, S ) * V0;
+      Tensor< double, nDim > r_U = einsum< i, ij >( dT_A_dx, S ) * V0;
+      if constexpr ( isAxisymmetric )
+        r_U( 0 ) += Hoop::force( T_A, radiusOfCenter(), _mp.outOfPlaneStretch(), _mp.response.tau33, V0 );
       P.template segment< nDim >( idxA_u ) += Eigen::Map< const Eigen::Matrix< double, nDim, 1 > >( r_U.data() );
 
       for ( int kNl = 0; kNl < nNonlocal; kNl++ ) {
@@ -1141,8 +1266,8 @@ namespace Marmot::Discretizations::Meshfree {
     }
   }
 
-  template < int nDim, int nNonlocal >
-  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal >::computeLumpedInertia( double* mLumped ) const
+  template < int nDim, int nNonlocal, Section section >
+  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >::computeLumpedInertia( double* mLumped ) const
   {
     constexpr int nodeBlockSize = nDim + nNonlocal;
 
@@ -1159,8 +1284,8 @@ namespace Marmot::Discretizations::Meshfree {
     }
   }
 
-  template < int nDim, int nNonlocal >
-  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal >::computeLumpedDamping( double* cLumped ) const
+  template < int nDim, int nNonlocal, Section section >
+  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >::computeLumpedDamping( double* cLumped ) const
   {
     constexpr int nodeBlockSize = nDim + nNonlocal;
 
@@ -1174,8 +1299,8 @@ namespace Marmot::Discretizations::Meshfree {
     }
   }
 
-  template < int nDim, int nNonlocal >
-  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal >::computeLumpedMomentum( double* pLumped ) const
+  template < int nDim, int nNonlocal, Section section >
+  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >::computeLumpedMomentum( double* pLumped ) const
   {
     constexpr int nodeBlockSize = nDim + nNonlocal;
 
@@ -1194,26 +1319,26 @@ namespace Marmot::Discretizations::Meshfree {
     }
   }
 
-  template < int nDim, int nNonlocal >
-  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal >::computeDistributedLoad( int           type,
-                                                                                        int           surfaceID,
-                                                                                        const double* load,
-                                                                                        double*       fExt,
-                                                                                        double*       dExt_dQ,
-                                                                                        double        timeNew,
-                                                                                        double        dT ) const
+  template < int nDim, int nNonlocal, Section section >
+  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >::computeDistributedLoad( int type,
+                                                                                                 int surfaceID,
+                                                                                                 const double* load,
+                                                                                                 double*       fExt,
+                                                                                                 double*       dExt_dQ,
+                                                                                                 double        timeNew,
+                                                                                                 double dT ) const
   {
     throw std::invalid_argument( Marmot::Utilities::MakeString()
                                  << __PRETTY_FUNCTION__ << ": a point particle has no faces for a distributed load" );
   }
 
-  template < int nDim, int nNonlocal >
-  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal >::computeBodyLoad( int           type,
-                                                                                 const double* load,
-                                                                                 double*       fExt,
-                                                                                 double*       dExt_dQ,
-                                                                                 double        timeNew,
-                                                                                 double        dT ) const
+  template < int nDim, int nNonlocal, Section section >
+  void GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >::computeBodyLoad( int           type,
+                                                                                          const double* load,
+                                                                                          double*       fExt,
+                                                                                          double*       dExt_dQ,
+                                                                                          double        timeNew,
+                                                                                          double        dT ) const
   {
     switch ( type ) {
     case BodyForce: {

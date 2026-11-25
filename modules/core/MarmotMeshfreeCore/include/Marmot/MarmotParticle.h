@@ -38,7 +38,7 @@ namespace Marmot::Discretizations::Meshfree {
 
   /**
    * @brief The section of a particle: the measure of the integrals over its domain (see Particle::getSection() and
-   * ParticleSection).
+   * ParticleSectionIntegrals).
    */
   enum class Section {
     Cartesian,    ///< the domain itself: plane strain (unit thickness) in 2D, the volume in 3D

@@ -19,8 +19,8 @@ particles,
 
 and they are the same classes: the section of the particle, ``Marmot::Discretizations::Meshfree::Section``
 (``Cartesian`` or ``Axisymmetric``), is a template parameter, and what it changes is collected in
-``ParticleSection`` (the integrals over the particle domain) and ``Hoop`` (the hoop terms of the weak form), both in
-``MarmotParticleSection.h``. A host learns the section of a particle from ``Particle::getSection()``, e.g. to
+``ParticleSectionIntegrals`` (the integrals over the smoothing domain) and ``Hoop`` (the hoop terms of the weak form),
+both in ``MarmotParticleSectionIntegrals.h``. A host learns the section of a particle from ``Particle::getSection()``, e.g. to
 integrate the contact points on the faces of the particles over the same rings. This page derives what the
 axisymmetric section changes; everything else -- the updated-Lagrangian kinematics, the material point, the nonlocal
 balance, the explicit life cycle -- is that of the plane-strain particles. The conventions follow the axisymmetric finite elements ``CX8UL`` / ``CX8RUL``
@@ -112,31 +112,38 @@ The smoothed gradient of the ring
 ---------------------------------
 
 SQCNI replaces the gradient at the particle center by its average over the smoothing domain :math:`\Omega_s`, written
-as a boundary integral by the divergence theorem (Chen, Wu, Yoon and You, 2001). Over the ring, the average is
-weighted with :math:`2\pi r`, and the divergence theorem of the weighted integrand gains an area term,
-:math:`r\,\partial N/\partial r = \partial(r N)/\partial r - N`:
+as a boundary integral by the divergence theorem (Chen, Wu, Yoon and You, 2001), see :doc:`meshfreeparticles`. Over the
+ring, the average is weighted with :math:`2\pi r`, and the divergence theorem of the weighted integrand gains an area
+term, :math:`r\,\partial N/\partial r = \partial(r N)/\partial r - N`:
 
 .. math::
 
-   \tilde G_{Bj} = \frac{1}{V_s}\int_{\Omega_s}\frac{\partial N_B}{\partial Y_j}\,2\pi r\,dA
-   = \frac{2\pi}{V_s}\Bigl(\oint_{\partial\Omega_s} r\,N_B\,n_j\,ds - \delta_{jr}\int_{\Omega_s} N_B\,dA\Bigr),
-   \qquad V_s = 2\pi\int_{\Omega_s} r\,dA .
+   \tilde N_{B,i} = \frac{1}{|\Omega_s|}\int_{\Omega_s}\frac{\partial N_B}{\partial Y_i}\,2\pi r\,dA
+   = \frac{2\pi}{|\Omega_s|}\Bigl(\oint_{\partial\Omega_s} r\,N_B\,n_i\,ds - \delta_{ir}\int_{\Omega_s} N_B\,dA\Bigr),
+   \qquad |\Omega_s| = 2\pi\int_{\Omega_s} r\,dA ,
 
-The hoop strain is averaged alike, and its area integral is the same one:
-
-.. math::
-
-   \tilde H_B = \frac{1}{V_s}\int_{\Omega_s}\frac{N_B}{r}\,2\pi r\,dA = \frac{2\pi}{V_s}\int_{\Omega_s} N_B\,dA .
-
-**What is adopted.** The face integrals are evaluated with two Gauss points per face, the area integral with one
-point, the area centroid of :math:`\Omega_s`, which is the particle center:
-:math:`\int_{\Omega_s} N_B\,dA \approx A_s\,N_B(\bar{\boldsymbol Y})`. With :math:`V_s = 2\pi A_s\bar r`, the hoop
-operator becomes the point value, :math:`\tilde H_B = N_B/\bar r`, and
+with the area element :math:`dA` and the line element :math:`ds` of the meridian half plane, and the ring volume
+:math:`|\Omega_s|` of the smoothing domain. The hoop strain is averaged alike, and its area integral is the same one:
 
 .. math::
 
-   \tilde G_{Bj} = \frac{2\pi}{V_s}\sum_f\sum_{g=1}^{2} r_g\,N_B(\boldsymbol Y_g)\,\frac{n_{f,j}\,L_f}{2}
-   - \delta_{jr}\,\frac{N_B(\bar{\boldsymbol Y})}{\bar r} .
+   \tilde H_B = \frac{1}{|\Omega_s|}\int_{\Omega_s}\frac{N_B}{r}\,2\pi r\,dA
+   = \frac{2\pi}{|\Omega_s|}\int_{\Omega_s} N_B\,dA .
+
+**What is adopted.** The face integrals are evaluated with two Gauss points :math:`\boldsymbol Y_g` per face, which
+share the area vector :math:`\boldsymbol n_f\,dA_f` of the face :math:`f` in the half plane (the length of the face
+times its normal) equally; the area integral with one point, the area centroid of :math:`\Omega_s`, which is the
+particle center: :math:`\int_{\Omega_s} N_B\,dA \approx A_s\,N_B(\bar{\boldsymbol Y})`. With
+:math:`|\Omega_s| = 2\pi A_s\bar r`, the hoop operator becomes the point value, :math:`\tilde H_B = N_B/\bar r`,
+and
+
+.. math::
+
+   \tilde N_{B,i} = \frac{1}{|\Omega_s|}\sum_f\sum_{g=1}^{2} 2\pi r_g\,N_B(\boldsymbol Y_g)\,
+   \frac{n_{f,i}\,dA_f}{2} - \delta_{ir}\,\frac{N_B(\bar{\boldsymbol Y})}{\bar r} .
+
+For :math:`2\pi r_g = 1`, one point per face (the face center) and without the area term, this is the smoothed
+gradient of the plane particles.
 
 Both properties of SQCNI carry over exactly:
 
@@ -147,14 +154,14 @@ Both properties of SQCNI carry over exactly:
 
   .. math::
 
-     \sum_L V_L\bigl(\tilde G_{Ar}\,\sigma_{rr} + \tilde G_{Az}\,\sigma_{rz} + \tilde H_A\,\sigma_{\theta\theta}\bigr)
+     \sum_L V_L\bigl(\tilde N_{A,r}\,\sigma_{rr} + \tilde N_{A,z}\,\sigma_{rz} + \tilde H_A\,\sigma_{\theta\theta}\bigr)
      = 2\pi\sum_L\Bigl(\sigma_{rr}\oint r N_A n_r\,ds + \sigma_{rz}\oint r N_A n_z\,ds\Bigr)
      + 2\pi\,(\sigma_{\theta\theta} - \sigma_{rr})\sum_L A_L N_A(\bar{\boldsymbol Y}_L),
 
   is a sum of face integrals, which cancel on every face two particles share (the same Gauss points, opposite
   normals), plus the area terms, which cancel *within* each particle because the radial gradient and the hoop strain
   use the same value of :math:`\int N_A\,dA`, whatever quadrature evaluates it. What remains is the boundary integral
-  of the body, as for the exact integrals; the axial row, :math:`\sum_L V_L\,\tilde G_{Az}\,\sigma_{zz}`, is a sum
+  of the body, as for the exact integrals; the axial row, :math:`\sum_L V_L\,\tilde N_{A,z}\,\sigma_{zz}`, is a sum
   of face integrals alone. The cancellation needs
   smoothing domains that tile the body, i.e. the update ``DeformationGradient`` (SQCNI); the axisymmetric particles
   are registered with it only.
@@ -162,12 +169,12 @@ Both properties of SQCNI carry over exactly:
   smoothed gradient and hoop strain are the exact ring averages of the exact ones: the face integrands
   :math:`r\,u` are quadratic along a straight face (two Gauss points integrate them exactly; the one-point rule of the
   plane particles would not), and the area integrand :math:`u` is linear (the centroid rule integrates it exactly).
-  E.g., for :math:`u_r = a\,r` both :math:`\tilde G_{rr}` and :math:`\tilde H` give :math:`a`, so that the particle
-  sees the uniform state the patch test prescribes. The hoop stretch :math:`1 + \Delta u_r(\bar{\boldsymbol Y})/\bar r`
+  E.g., for :math:`u_r = a\,r` both :math:`\tilde N_{B,r}\,q_{Br}` and :math:`\tilde H_B\,q_{Br}` give :math:`a`, so
+  that the particle sees the uniform state the patch test prescribes. The hoop stretch :math:`1 + \Delta u_r(\bar{\boldsymbol Y})/\bar r`
   of a linear increment is the ratio of the moved and the old radius of the centroid, so that the ring volume of the
-  moved smoothing domain is :math:`J\,V_s` with the 3D Jacobian.
+  moved smoothing domain is :math:`J\,|\Omega_s|` with the 3D Jacobian.
 
-The gradient of a nonlocal field is smoothed with the same :math:`\tilde G_{Bj}`; it enters the Helmholtz balance in
+The gradient of a nonlocal field is smoothed with the same :math:`\tilde N_{B,i}`; it enters the Helmholtz balance in
 :math:`(r, z)` only. These are the "axisymmetric patch tests" of the module tests: a uniform radial expansion
 :math:`u_r = a\,r`, an axial strain :math:`u_z = b\,z` and their combination leave interior particles without force
 to round-off; a shear :math:`u_z = c\,r` is reproduced exactly (its stress needs the body force
@@ -204,7 +211,7 @@ strain. Its second gradients of the shape functions are smoothed over the ring l
 
 .. math::
 
-   \frac{\partial^2 N_B}{\partial Y_I\,\partial Y_J} \approx \frac{2\pi}{V_s}\Bigl(\oint r\,
+   \hat N_{B,IJ} = \frac{2\pi}{|\Omega_s|}\Bigl(\oint r\,
    \frac{\partial N_B}{\partial Y_I}\,n_J\,ds - \delta_{Jr}\oint N_B\,n_I\,ds\Bigr)
 
 (symmetrized; :math:`\int\partial N_B/\partial Y_I\,dA = \oint N_B\,n_I\,ds`), with the Gauss points of the faces. For
@@ -218,7 +225,7 @@ Loads and corrections
 
 - ``BODYFORCE``: :math:`\boldsymbol f_A \mathrel{-}= T_A\,\boldsymbol b\,V_0` with the ring volume.
 - ``PRESSURE`` on a face: the surface vector of the face times the ring at its center,
-  :math:`\boldsymbol N\,dA_Y = 2\pi\,r_f\,\boldsymbol n_f L_f`, pushed to the current configuration by Nanson's
+  :math:`\boldsymbol N\,dA_Y = 2\pi\,r_f\,\boldsymbol n_f\,dA_f`, pushed to the current configuration by Nanson's
   formula with the 3D increment, :math:`\Delta J\,\Delta\boldsymbol F^{-T}` including the hoop stretch increment of
   the particle (the ring of the face grows with it), with the consistent tangent.
 - ``CWFCORRECTION`` and VCI are not available for the axisymmetric particles: a request throws. VCI (Chen, Hillman

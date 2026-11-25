@@ -53,7 +53,7 @@ namespace {
                       } );
 
   // the axisymmetric twin of the plane-strain particle, in the meridian half plane (r, z); with the update
-  // DeformationGradient only, whose smoothing domains tile the body (see ParticleSection)
+  // DeformationGradient only, whose smoothing domains tile the body (see ParticleSectionIntegrals)
   using AxisymmetricSQCNI = DisplacementParticleSQCNI< 2, 4, Section::Axisymmetric >;
 
   const static bool DisplacementParticleSQCNI_Axisymmetric_Quad_isRegistered = Marmot::Registry::ParticleFactory::

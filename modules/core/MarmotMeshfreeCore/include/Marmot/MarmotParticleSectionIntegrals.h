@@ -39,61 +39,92 @@
 
 /**
  * @file
- * @brief The section of a particle: what the integrals over its domain measure, and the hoop terms of the
- * axisymmetric weak form. The derivation is on the page "Axisymmetric Particles" of the documentation.
+ * @brief The integrals over the smoothing domain of a particle in its section: its volume, the smoothed gradients of
+ * the shape functions and its second moments, one implementation for the SQCNI, SNNI, NSNI and SDI particles of both
+ * families; and the hoop terms of the axisymmetric weak form. The axisymmetric derivation is on the page
+ * "Axisymmetric Particles" of the documentation.
  */
 
 namespace Marmot::Discretizations::Meshfree {
 
   /**
-   * @brief The integrals over the domain of a particle with a domain (a Lagrange cell) in its section: its volume, the
-   * smoothed gradients of the shape functions over its smoothing domain, and its second moments.
+   * @brief The integrals over the smoothing domain of a particle in its section: its volume, the smoothed gradients of
+   * the shape functions (stabilized conforming nodal integration, Chen et al., 2001) and its second moments.
    *
-   * @details For the Cartesian section these are the integrals of the plane-strain and 3D particles: the smoothed
-   * gradient with one point per face (the face center),
+   * @details The smoothed gradient is the average of the gradient over the smoothing domain @f$ \Omega_s @f$, turned
+   * into a boundary integral by the divergence theorem and integrated with a rule on each face @f$ f @f$
+   * (faceQuadraturePoints()). In the Cartesian section (plane strain, 3D) the rule is one point per face, the face
+   * center @f$ \boldsymbol{Y}_f @f$,
    * @f[
-   *   \tilde G_{Bj} = \frac{1}{V_s} \sum_f N_B(\boldsymbol{Y}_f)\, n_{f,j}\, dA_f .
+   *   \tilde N_{A,i} = \frac{1}{|\Omega_s|}\int_{\Omega_s} \frac{\partial N_A}{\partial Y_i}\,dV
+   *   = \frac{1}{|\Omega_s|}\oint_{\partial\Omega_s} N_A\,n_i\,dA
+   *   \approx \frac{1}{|\Omega_s|} \sum_f N_A(\boldsymbol{Y}_f)\, n_{f,i}\, dA_f ,
    * @f]
-   * For the axisymmetric section, every integral carries the ring weight @f$ 2\pi r @f$; the divergence theorem of the
-   * weighted gradient gains an area term, which is integrated with the area centroid of the smoothing domain (the
-   * particle center @f$ \bar{\boldsymbol{Y}} @f$), the faces with two Gauss points each:
+   * with the coordinates @f$ \boldsymbol{Y} @f$ of the intermediate configuration, the volume @f$ |\Omega_s| @f$
+   * (volume()) and the area vector @f$ \boldsymbol{n}_f\,dA_f @f$ of face @f$ f @f$
+   * (LagrangeCell::boundarySurfaceVector()). Here the face rule is the only approximation, and only the values of the
+   * shape functions at the face points are needed. NSNI smooths the second derivatives alike, from the (unsmoothed)
+   * gradients at the same points,
    * @f[
-   *   \tilde G_{Bj} = \frac{2\pi}{V_s} \sum_f \sum_{g=1}^{2} r_g\, N_B(\boldsymbol{Y}_g)\, \frac{n_{f,j}\, L_f}{2}
-   *   - \delta_{jr}\, \frac{N_B(\bar{\boldsymbol{Y}})}{\bar r}, \qquad V_s = 2\pi A_s \bar r ,
+   *   \hat N_{A,IJ} = \frac{1}{|\Omega_s|} \sum_f \frac{\partial N_A}{\partial Y_I}(\boldsymbol{Y}_f)\,
+   *   n_{f,J}\, dA_f ,
    * @f]
-   * which is the exact ring average of the gradient for every linear field, and which satisfies the integration
-   * constraint together with the hoop operator @f$ N_B / \bar r @f$ (Hoop). The second gradients of NSNI are smoothed
-   * alike,
+   * stored unsymmetrized as `d2N_dYdY[J](I, A)`; NSNI::secondGradientOfNode() symmetrizes them.
+   *
+   * In the axisymmetric section, @f$ \Omega_s @f$ is the ring swept by the smoothing domain of the meridian half plane
+   * (@f$ Y_0 = r @f$), and every integral carries the ring weight @f$ 2\pi r @f$ (weight()): @f$ |\Omega_s| = 2\pi
+   * A_s \bar r @f$, with the area @f$ A_s @f$ and the radius @f$ \bar r @f$ of its area centroid (the particle center
+   * @f$ \bar{\boldsymbol{Y}} @f$). The divergence theorem of the weighted gradient gains an area term, which is
+   * integrated with the centroid; the faces are integrated with two Gauss points @f$ \boldsymbol{Y}_g @f$ each, which
+   * share the area vector @f$ \boldsymbol{n}_f\,dA_f @f$ of the face (in the half plane) equally:
    * @f[
-   *   \frac{\partial^2 N_B}{\partial Y_I \partial Y_J} \approx \frac{2\pi}{V_s} \Big( \oint r\, \frac{\partial
-   *   N_B}{\partial Y_I}\, n_J\, ds - \delta_{Jr} \oint N_B\, n_I\, ds \Big)
+   *   \tilde N_{A,i} = \frac{1}{|\Omega_s|} \sum_f \sum_{g=1}^{2} 2\pi r_g\, N_A(\boldsymbol{Y}_g)\,
+   *   \frac{n_{f,i}\, dA_f}{2} - \delta_{ir}\, \frac{N_A(\bar{\boldsymbol{Y}})}{\bar r} .
    * @f]
-   * (stored unsymmetrized, as `d2N_dYdY[J](I, B)`), and the second moments are those of the ring about the area
-   * centroid, @f$ 2\pi \int \boldsymbol{\xi} \otimes \boldsymbol{\xi}\, r\, dA @f$.
+   * This is the exact ring average of the gradient for every linear field, and it satisfies the integration
+   * constraint together with the hoop operator @f$ N_A / \bar r @f$ (Hoop). The second derivatives of NSNI are
+   * smoothed alike,
+   * @f[
+   *   \hat N_{A,IJ} = \frac{1}{|\Omega_s|} \sum_f \sum_{g=1}^{2} 2\pi \Big( r_g\, \frac{\partial N_A}{\partial
+   *   Y_I}(\boldsymbol{Y}_g)\, n_{f,J} - \delta_{Jr}\, N_A(\boldsymbol{Y}_g)\, n_{f,I} \Big) \frac{dA_f}{2} ,
+   * @f]
+   * and the second moments are those of the ring about the area centroid, @f$ 2\pi \int \boldsymbol{\xi} \otimes
+   * \boldsymbol{\xi}\, r\, dA @f$.
+   *
+   * The particles take these integrals, and their evaluation points (faceQuadraturePoints()), from here and not from
+   * the cell: the face rule of the smoothing is defined in this class only. *Section* is meant as for finite elements
+   * (plane strain, 3D, axisymmetric): the form of the integrals depends on it; in the Cartesian section the integrals
+   * carry the weight 1. The class holds static functions only, so that a particle selects its integrals with its own
+   * template parameters.
    *
    * @tparam section   The section.
    * @tparam nDim      The spatial dimension; 2 for the axisymmetric section.
    * @tparam nVertices The number of vertices of the cell (4: Quad, 8: Hexa).
    */
   template < Section section, int nDim, int nVertices >
-  class ParticleSection {
+  class ParticleSectionIntegrals {
     static_assert( section == Section::Cartesian || nDim == 2,
                    "an axisymmetric particle lives in the meridian half plane: nDim = 2" );
 
   public:
-    using Cell = LagrangeCell< nDim, nVertices >;  ///< the domain of a particle
+    using Cell = LagrangeCell< nDim, nVertices >;  ///< a smoothing domain (a Lagrange cell)
     using Vec  = Eigen::Matrix< double, nDim, 1 >; ///< a point or a vector
 
     /// @brief The section is axisymmetric.
     static constexpr bool isAxisymmetric = section == Section::Axisymmetric;
 
-    /// @brief The number of quadrature points per face of the smoothing domain.
+    /// @brief The number of quadrature points per face of a smoothing domain: one, the face center (Cartesian), or two
+    /// Gauss points (axisymmetric).
     static constexpr int nPointsPerFace = isAxisymmetric ? 2 : 1;
 
+    /// @brief The quadrature points of one face, nDim x nPointsPerFace.
+    using FacePoints = Eigen::Matrix< double, nDim, nPointsPerFace >;
+
     /**
-     * @brief The volume of a domain in the section.
-     * @param[in] cell The domain.
-     * @return Its volume (area in plane strain), or its ring volume @f$ 2\pi A \bar r @f$ (Pappus).
+     * @brief The volume of a smoothing domain.
+     * @param[in] cell The smoothing domain.
+     * @return Its volume @f$ |\Omega_s| @f$ (area in plane strain), or its ring volume @f$ 2\pi A_s \bar r @f$
+     * (Pappus).
      */
     static double volume( const Cell& cell )
     {
@@ -117,28 +148,59 @@ namespace Marmot::Discretizations::Meshfree {
     }
 
     /**
-     * @brief The quadrature points of the faces of a smoothing domain: the face centers, or two Gauss points per face.
+     * @brief The number of face quadrature points of a smoothing domain.
      * @param[in] cell The smoothing domain.
-     * @return nDim x (number of faces x nPointsPerFace), face by face.
+     * @return The number of face quadrature points, `faceQuadraturePoints( cell ).cols()`.
+     */
+    static int numberOfFaceQuadraturePoints( const Cell& cell ) { return cell.getNumberOfFaces() * nPointsPerFace; }
+
+    /**
+     * @brief The quadrature points of one face of a smoothing domain: its center, or its two Gauss points.
+     * @param[in] cell The smoothing domain.
+     * @param[in] faceID The face (1-based).
+     * @return nDim x nPointsPerFace: the face center (Cartesian), or the Gauss points @f$ \boldsymbol{Y}_f \mp
+     * \boldsymbol{e}_f / (2\sqrt{3}) @f$ of the straight edge @f$ \boldsymbol{e}_f @f$ (axisymmetric).
+     */
+    static FacePoints faceQuadraturePoints( const Cell& cell, int faceID )
+    {
+      if constexpr ( isAxisymmetric ) {
+        // the edge from the surface vector (e_1, -e_0) of a counter-clockwise quadrilateral
+        const Vec  n_dA = cell.boundarySurfaceVector( faceID );
+        const Vec  edge( -n_dA( 1 ), n_dA( 0 ) );
+        const Vec  center = cell.getFaceCenterCoordinates( faceID );
+        FacePoints points;
+        for ( int g = 0; g < nPointsPerFace; g++ )
+          points.col( g ) = center + ( g == 0 ? -1.0 : 1.0 ) / ( 2.0 * std::sqrt( 3.0 ) ) * edge;
+        return points;
+      }
+      else
+        return cell.getFaceCenterCoordinates( faceID );
+    }
+
+    /**
+     * @brief The quadrature points of all faces of a smoothing domain.
+     * @param[in] cell The smoothing domain.
+     * @return nDim x numberOfFaceQuadraturePoints(), face by face.
      */
     static Eigen::Matrix< double, nDim, Eigen::Dynamic > faceQuadraturePoints( const Cell& cell )
     {
-      Eigen::Matrix< double, nDim, Eigen::Dynamic > points( nDim, cell.getNumberOfFaces() * nPointsPerFace );
+      Eigen::Matrix< double, nDim, Eigen::Dynamic > points( nDim, numberOfFaceQuadraturePoints( cell ) );
       for ( int f = 0; f < cell.getNumberOfFaces(); f++ )
-        for ( int g = 0; g < nPointsPerFace; g++ )
-          points.col( f * nPointsPerFace + g ) = faceQuadraturePoint( cell, f + 1, g );
+        points.middleCols( f * nPointsPerFace, nPointsPerFace ) = faceQuadraturePoints( cell, f + 1 );
       return points;
     }
 
     /**
-     * @brief The smoothed gradients (and second gradients) of the shape functions over a smoothing domain, see the
-     * class description.
+     * @brief The smoothed gradients (and second derivatives) of the shape functions over a smoothing domain, see the
+     * class description. The points of a face share its area vector equally.
      * @param[in] smoothingDomain The smoothing domain; its area centroid is the particle center.
      * @param[in] approximation The meshfree approximation.
      * @param[in] kernelFunctions The kernel functions of the nodes.
-     * @param[in] N The shape functions at the particle center, 1 x nNodes (the area term of the ring).
+     * @param[in] N The shape functions at the particle center, 1 x nNodes: the area term of the ring (axisymmetric);
+     * the Cartesian smoothing uses only its size (the number of nodes).
      * @param[out] dN_dY The smoothed gradients, nDim x nNodes.
-     * @param[out] d2N_dYdY The smoothed second gradients, `d2N_dYdY[J](I, B)`; nullptr if not needed.
+     * @param[out] d2N_dYdY The smoothed second derivatives, `d2N_dYdY[J](I, A)`; nullptr: first derivatives only
+     * (SQCNI, SNNI, SDI); NSNI passes its array.
      */
     static void smoothShapeFunctionGradients( const Cell&                                 smoothingDomain,
                                               const Approximation&                        approximation,
@@ -165,31 +227,10 @@ namespace Marmot::Discretizations::Meshfree {
      * @throws std::invalid_argument for such a domain.
      */
     static void checkDomain( const Cell& cell, int particleLabel );
-
-  private:
-    /**
-     * @brief A quadrature point of a face.
-     * @param[in] cell The smoothing domain.
-     * @param[in] faceID The face (1-based).
-     * @param[in] g The point of the face, 0 .. nPointsPerFace - 1.
-     * @return The face center (Cartesian), or the Gauss point @f$ \boldsymbol{Y}_f \pm \boldsymbol{e}_f /
-     * (2\sqrt{3}) @f$ of the straight edge @f$ \boldsymbol{e}_f @f$ (axisymmetric).
-     */
-    static Vec faceQuadraturePoint( const Cell& cell, int faceID, int g )
-    {
-      if constexpr ( isAxisymmetric ) {
-        // the edge from the surface vector (e_1, -e_0) of a counter-clockwise quadrilateral
-        const Vec n_dA = cell.boundarySurfaceVector( faceID );
-        const Vec edge( -n_dA( 1 ), n_dA( 0 ) );
-        return cell.getFaceCenterCoordinates( faceID ) + ( g == 0 ? -1.0 : 1.0 ) / ( 2.0 * std::sqrt( 3.0 ) ) * edge;
-      }
-      else
-        return cell.getFaceCenterCoordinates( faceID );
-    }
   };
 
   template < Section section, int nDim, int nVertices >
-  void ParticleSection< section, nDim, nVertices >::smoothShapeFunctionGradients(
+  void ParticleSectionIntegrals< section, nDim, nVertices >::smoothShapeFunctionGradients(
     const Cell&                                 smoothingDomain,
     const Approximation&                        approximation,
     const std::vector< const KernelFunction* >& kernelFunctions,
@@ -207,8 +248,11 @@ namespace Marmot::Discretizations::Meshfree {
     Eigen::MatrixXd dN_dY_Boundary = Eigen::MatrixXd::Zero( nDim, nNodes );
 
     for ( int f = 0; f < smoothingDomain.getNumberOfFaces(); f++ ) {
+      const FacePoints points = faceQuadraturePoints( smoothingDomain, f + 1 );
+      const Vec        n_dA   = smoothingDomain.boundarySurfaceVector( f + 1 ) / double( nPointsPerFace );
+
       for ( int g = 0; g < nPointsPerFace; g++ ) {
-        const Vec Y = faceQuadraturePoint( smoothingDomain, f + 1, g );
+        const Vec Y = points.col( g );
 
         if ( d2N_dYdY )
           approximation.computeShapeFunctionsAndGradients( Y.data(),
@@ -218,29 +262,20 @@ namespace Marmot::Discretizations::Meshfree {
         else
           approximation.computeShapeFunctions( Y.data(), kernelFunctions, NBoundary.data() );
 
-        if constexpr ( isAxisymmetric ) {
-          // the Gauss point's share of the face, r n dA / 2 (with the 2 pi of the ring), and n dA / 2 for the area
-          // term of the second gradients, int dN/dY_I dA = oint N n_I ds
-          const Vec halfSurfaceVector = 0.5 * smoothingDomain.boundarySurfaceVector( f + 1 );
-          const Vec ringSurfaceVector = weight( Y ) * halfSurfaceVector;
-          dN_dY += ringSurfaceVector * NBoundary;
-          if ( d2N_dYdY ) {
-            for ( int J = 0; J < nDim; J++ )
-              ( *d2N_dYdY )[J] += ringSurfaceVector( J ) * dN_dY_Boundary;
-            ( *d2N_dYdY )[0] -= ( 2.0 * Marmot::Math::Constants::Pi * halfSurfaceVector ) * NBoundary;
-          }
-        }
-        else {
-          const Vec n_dA = smoothingDomain.boundarySurfaceVector( f + 1 );
-          dN_dY += n_dA * NBoundary;
-          if ( d2N_dYdY )
-            for ( int J = 0; J < nDim; J++ )
-              ( *d2N_dYdY )[J] += n_dA( J ) * dN_dY_Boundary;
+        // the point's share of the face, weighted by the section (the 2 pi r of the ring)
+        const Vec ring_n_dA = weight( Y ) * n_dA;
+        dN_dY += ring_n_dA * NBoundary;
+        if ( d2N_dYdY ) {
+          for ( int J = 0; J < nDim; J++ )
+            ( *d2N_dYdY )[J] += ring_n_dA( J ) * dN_dY_Boundary;
+          // the area term of the ring in the second derivatives, int dN/dY_I dA = oint N n_I ds
+          if constexpr ( isAxisymmetric )
+            ( *d2N_dYdY )[0] -= ( 2.0 * Marmot::Math::Constants::Pi * n_dA ) * NBoundary;
         }
       }
     }
 
-    // the area term of the ring, -delta_jr 2 pi int N dA, with the centroid rule: -2 pi A N(center)
+    // the area term of the ring, -delta_ir 2 pi int N dA, with the centroid rule: -2 pi A N(center)
     if constexpr ( isAxisymmetric )
       dN_dY.row( 0 ) -= ( 2.0 * Marmot::Math::Constants::Pi * smoothingDomain.volume() ) * N;
 
@@ -252,7 +287,8 @@ namespace Marmot::Discretizations::Meshfree {
   }
 
   template < Section section, int nDim, int nVertices >
-  Eigen::Matrix< double, nDim, nDim > ParticleSection< section, nDim, nVertices >::secondMoments( const Cell& cell )
+  Eigen::Matrix< double, nDim, nDim > ParticleSectionIntegrals< section, nDim, nVertices >::secondMoments(
+    const Cell& cell )
   {
     if constexpr ( isAxisymmetric ) {
       const Vec                           C       = cell.centroid();
@@ -274,7 +310,7 @@ namespace Marmot::Discretizations::Meshfree {
   }
 
   template < Section section, int nDim, int nVertices >
-  void ParticleSection< section, nDim, nVertices >::checkDomain( const Cell& cell, int particleLabel )
+  void ParticleSectionIntegrals< section, nDim, nVertices >::checkDomain( const Cell& cell, int particleLabel )
   {
     if constexpr ( isAxisymmetric ) {
       // the round-off of a mesher, relative to the size of the particle, as for the axisymmetric elements

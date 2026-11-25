@@ -27,6 +27,7 @@
 #include "Marmot/GradientEnhancedFiniteStrainParticle.h"
 #include "Marmot/MarmotMeshfreeApproximation.h"
 #include "Marmot/MarmotMeshfreeQuadHexCell.h"
+#include "Marmot/MarmotParticleSectionIntegrals.h"
 #include <Eigen/Core>
 #include <Eigen/Dense>
 /* Fastor/Fastor.h ends with `#pragma warning( default : ... )`; scope it so it neither overrides the build's warning
@@ -75,11 +76,11 @@ namespace Marmot::Discretizations::Meshfree {
    * coincide with the physical domain of the particle.
    *
    * The volume, the smoothed gradients and the surface vectors of the faces are those of the section
-   * (ParticleSection): for Section::Axisymmetric, the ring volume, the ring-weighted smoothed gradient with its area
-   * term and two Gauss points per face, and the ring of the face center times its surface vector. An axisymmetric
-   * particle needs the update type `DeformationGradient` (smoothing domains that tile the body, for the integration
-   * constraint), refuses a domain that is not in the meridian half plane, and supports the distributed load `PRESSURE`
-   * only. See the page "Axisymmetric Particles" of the documentation.
+   * (ParticleSectionIntegrals): for Section::Axisymmetric, the ring volume, the ring-weighted smoothed gradient with
+   * its area term and two Gauss points per face, and the ring of the face center times its surface vector. An
+   * axisymmetric particle needs the update type `DeformationGradient` (smoothing domains that tile the body, for the
+   * integration constraint), refuses a domain that is not in the meridian half plane, and supports the distributed load
+   * `PRESSURE` only. See the page "Axisymmetric Particles" of the documentation.
    *
    * @tparam nDim      Spatial dimension (2: plane strain or axisymmetric, 3: 3D).
    * @tparam nVertices Number of vertices of the smoothing domain (4: Quad, 8: Hexa).
@@ -104,10 +105,11 @@ namespace Marmot::Discretizations::Meshfree {
     };
 
   protected:
-    using LagrangeCellType = LagrangeCell< nDim, nVertices >;             ///< geometry of the smoothing domain
-    using SectionIntegrals = ParticleSection< section, nDim, nVertices >; ///< the integrals of the section
+    using LagrangeCellType = LagrangeCell< nDim, nVertices >; ///< geometry of the smoothing domain
+    /// the integrals over the smoothing domain
+    using SectionIntegrals = ParticleSectionIntegrals< section, nDim, nVertices >;
 
-    const SmoothingDomainUpdateType _smoothingVolumeUpdateType;           ///< update type of the smoothing domain
+    const SmoothingDomainUpdateType _smoothingVolumeUpdateType; ///< update type of the smoothing domain
 
     const Eigen::Matrix< double, nDim, nVertices > _vertexCoordinates_Undeformed; ///< undeformed vertex coordinates
 
@@ -119,9 +121,9 @@ namespace Marmot::Discretizations::Meshfree {
     using ParentPointParticle = GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >; ///< the point
                                                                                                   ///< particle base
 
-    /// \brief Build a Lagrange cell from the current (deformed) smoothing domain vertex coordinates
-    /// \return The smoothing domain in the intermediate reference configuration.
-    LagrangeCellType _makeSmoothingDomainCell() const
+    /// \brief The smoothing domain of the particle, built from its current vertex coordinates
+    /// \return The cell of the smoothing domain in the intermediate configuration.
+    LagrangeCellType smoothingDomain() const
     {
       Eigen::Matrix< double, nDim, nVertices > vertexCoordinates;
       getSmoothingDomainVertexCoordinates( vertexCoordinates.data() );
@@ -203,7 +205,7 @@ namespace Marmot::Discretizations::Meshfree {
      * @param[in] approximation             Meshfree approximation used for the shape functions.
      * @param[in] smoothingVolumeUpdateType Update type of the smoothing domain.
      * @throws std::invalid_argument for an axisymmetric particle outside the meridian half plane
-     * (ParticleSection::checkDomain()) or with another update type than `DeformationGradient`.
+     * (ParticleSectionIntegrals::checkDomain()) or with another update type than `DeformationGradient`.
      */
     GradientEnhancedFiniteStrainParticleSQCNI( int                             elementID,
                                                const double*                   nodeCoordinates,
@@ -230,7 +232,7 @@ namespace Marmot::Discretizations::Meshfree {
     ///         that is obtained by applying (parts of) the deformation gradient to the element in the undeformed
     ///         configuration. In general, this is not consistent with the actual deformation of the particle.
     ///
-    virtual double getSmoothingVolume() const { return SectionIntegrals::volume( _makeSmoothingDomainCell() ); }
+    virtual double getSmoothingVolume() const { return SectionIntegrals::volume( smoothingDomain() ); }
 
     /**
      * @brief Center coordinates: the material point position of the last accepted state.
@@ -431,17 +433,16 @@ namespace Marmot::Discretizations::Meshfree {
 
     /**
      * @brief Coordinates of the evaluation points: the quadrature points of the faces of the smoothing domain (the face
-     * centers, or two Gauss points per face of an axisymmetric particle, ParticleSection::faceQuadraturePoints()).
+     * centers, or two Gauss points per face of an axisymmetric particle,
+     * ParticleSectionIntegrals::faceQuadraturePoints()).
      * @param[out] coordinates Coordinates, face by face (nDim x number of evaluation points).
      */
     void getEvaluationCoordinates( double* coordinates ) const override
     {
-      const auto cell = _makeSmoothingDomainCell();
-
       Eigen::Map< Eigen::Matrix< double, nDim, Eigen::Dynamic > > points( coordinates,
                                                                           nDim,
                                                                           getNumberOfEvaluationPoints() );
-      points = SectionIntegrals::faceQuadraturePoints( cell );
+      points = SectionIntegrals::faceQuadraturePoints( smoothingDomain() );
     }
 
     /**
@@ -459,11 +460,12 @@ namespace Marmot::Discretizations::Meshfree {
 
     /**
      * @brief Number of evaluation points.
-     * @return Number of faces of the smoothing domain times the quadrature points per face.
+     * @return The number of face quadrature points of the smoothing domain (whose faces are those of the undeformed
+     * cell).
      */
     int getNumberOfEvaluationPoints() const override
     {
-      return _makeUndeformedCell().getNumberOfFaces() * SectionIntegrals::nPointsPerFace;
+      return SectionIntegrals::numberOfFaceQuadraturePoints( _makeUndeformedCell() );
     };
 
   private:
@@ -740,7 +742,7 @@ namespace Marmot::Discretizations::Meshfree {
     if ( _smoothingVolumeUpdateType == DeformationGradient ) {
       // For the full SQCNI case, we actually operate on the deformed element.
       // This means, that the deformed smoothing domain is consistent with the physical domain of the particle.
-      const auto cell = _makeSmoothingDomainCell();
+      const auto cell = smoothingDomain();
 
       const Eigen::Matrix< double, nDim, 1 > n_dA = cell.boundarySurfaceVector( boundaryFaceID );
       const Eigen::Matrix< double, nDim, 1 > y    = cell.getFaceCenterCoordinates( boundaryFaceID );
@@ -900,12 +902,12 @@ namespace Marmot::Discretizations::Meshfree {
                                                                        ParentPointParticle::_assignedKernelFunctions,
                                                                        ParentPointParticle::_N.data() );
 
-    SectionIntegrals::smoothShapeFunctionGradients( _makeSmoothingDomainCell(),
+    SectionIntegrals::smoothShapeFunctionGradients( smoothingDomain(),
                                                     ParentPointParticle::_meshfreeApproximation,
                                                     ParentPointParticle::_assignedKernelFunctions,
                                                     ParentPointParticle::_N,
                                                     ParentPointParticle::_dN_dY,
-                                                    nullptr );
+                                                    nullptr ); // no second derivatives (not NSNI)
 
     ParentPointParticle::_T     = ParentPointParticle::_N;
     ParentPointParticle::_dT_dY = ParentPointParticle::_dN_dY;

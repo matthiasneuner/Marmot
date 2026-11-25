@@ -27,6 +27,7 @@
 #include "Marmot/DisplacementParticle.h"
 #include "Marmot/MarmotMeshfreeApproximation.h"
 #include "Marmot/MarmotParticleDomain.h" // Geometric component
+#include "Marmot/MarmotParticleSectionIntegrals.h"
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <Eigen/src/Core/util/Constants.h>
@@ -56,9 +57,10 @@ namespace Marmot::Discretizations::Meshfree {
    * particle (in the intermediate configuration @f$ \boldsymbol{Y} @f$), computed by a one-point rule at the face
    * centers @f$ \boldsymbol{Y}_f @f$ of the smoothing domain,
    * @f[
-   *   \frac{\partial N_B}{\partial Y_J} \approx \frac{1}{V_s} \int_{\partial\Omega_s} N_B\,N_J\,dA
-   *   \approx \frac{1}{V_s} \sum_f N_B(\boldsymbol{Y}_f)\,(N_J\,dA)_f .
+   *   \frac{\partial N_B}{\partial Y_i} \approx \frac{1}{|\Omega_s|} \oint_{\partial\Omega_s} N_B\,n_i\,dA
+   *   \approx \frac{1}{|\Omega_s|} \sum_f N_B(\boldsymbol{Y}_f)\, n_{f,i}\, dA_f
    * @f]
+   * (ParticleSectionIntegrals::smoothShapeFunctionGradients()).
    * The test functions are the trial functions (unless VCI corrects the test gradients). How the smoothing domain
    * follows the deformation is set by the SmoothingDomainUpdateType: with the deformation gradient (SQCNI, the
    * smoothing domain conforms to the deformed particle), not at all (SNNI, it is only translated), with the rotation
@@ -68,11 +70,11 @@ namespace Marmot::Discretizations::Meshfree {
    * form (CWF) correction, see computeDistributedLoad().
    *
    * The volume, the smoothed gradients and the surface vectors of the faces are those of the section
-   * (ParticleSection): for Section::Axisymmetric, the ring volume, the ring-weighted smoothed gradient with its area
-   * term and two Gauss points per face, and the ring of the face center times its surface vector. An axisymmetric
-   * particle needs the update type `DeformationGradient` (smoothing domains that tile the body, for the integration
-   * constraint), refuses a domain that is not in the meridian half plane, and supports the distributed load `PRESSURE`
-   * only. See the page "Axisymmetric Particles" of the documentation.
+   * (ParticleSectionIntegrals): for Section::Axisymmetric, the ring volume, the ring-weighted smoothed gradient with
+   * its area term and two Gauss points per face, and the ring of the face center times its surface vector. An
+   * axisymmetric particle needs the update type `DeformationGradient` (smoothing domains that tile the body, for the
+   * integration constraint), refuses a domain that is not in the meridian half plane, and supports the distributed load
+   * `PRESSURE` only. See the page "Axisymmetric Particles" of the documentation.
    *
    * @tparam nDim The number of dimensions (e.g., 2 for 2D, 3 for 3D).
    * @tparam nVertices The number of vertices defining the particle's geometry.
@@ -90,15 +92,16 @@ namespace Marmot::Discretizations::Meshfree {
 
     ParticleDomainType _particleDomain; ///< geometry and smoothing domain of the particle
 
-    using SectionIntegrals = ParticleSection< section, nDim, nVertices >; ///< the integrals of the section
+    /// the integrals over the smoothing domain
+    using SectionIntegrals = ParticleSectionIntegrals< section, nDim, nVertices >;
 
     /**
      * @brief The smoothing domain of the particle.
      * @return The cell of the smoothing domain in the intermediate configuration.
      */
-    typename ParticleDomainType::LagrangeCellType smoothingDomain() const
+    const typename ParticleDomainType::LagrangeCellType& smoothingDomain() const
     {
-      return typename ParticleDomainType::LagrangeCellType( _particleDomain.getSmoothingVertexCoordinates() );
+      return _particleDomain.smoothingDomain();
     }
 
   public:
@@ -119,7 +122,8 @@ namespace Marmot::Discretizations::Meshfree {
      * @param[in] approximation The meshfree approximation object used for shape functions.
      * @param[in] smoothingVolumeUpdateType The strategy for updating the smoothing domain's volume.
      * @throws std::invalid_argument if the provided volume is not zero, and for an axisymmetric particle outside the
-     * meridian half plane (ParticleSection::checkDomain()) or with another update type than `DeformationGradient`.
+     * meridian half plane (ParticleSectionIntegrals::checkDomain()) or with another update type than
+     * `DeformationGradient`.
      */
     DisplacementParticleSQCNI( int                                                          elementID,
                                const double*                                                nodeCoordinates,
@@ -177,7 +181,8 @@ namespace Marmot::Discretizations::Meshfree {
 
     /**
      * @brief Evaluation points of the shape functions: the quadrature points of the faces of the smoothing domain (the
-     * face centers, or two Gauss points per face of an axisymmetric particle, ParticleSection::faceQuadraturePoints()).
+     * face centers, or two Gauss points per face of an axisymmetric particle,
+     * ParticleSectionIntegrals::faceQuadraturePoints()).
      * @param[out] coordinates The coordinates (nDim x number of evaluation points, column major).
      */
     void getEvaluationCoordinates( double* coordinates ) const override
@@ -190,11 +195,11 @@ namespace Marmot::Discretizations::Meshfree {
 
     /**
      * @brief Number of evaluation points.
-     * @return The number of faces of the smoothing domain times the quadrature points per face.
+     * @return The number of face quadrature points of the smoothing domain.
      */
     int getNumberOfEvaluationPoints() const override
     {
-      return _particleDomain.getNumberOfFaces() * SectionIntegrals::nPointsPerFace;
+      return SectionIntegrals::numberOfFaceQuadraturePoints( smoothingDomain() );
     }
 
     /**
@@ -310,7 +315,7 @@ namespace Marmot::Discretizations::Meshfree {
                                                       this->_assignedKernelFunctions,
                                                       this->_N,
                                                       this->_dN_dY,
-                                                      nullptr );
+                                                      nullptr ); // no second derivatives (not NSNI)
 
       this->_T     = this->_N;
       this->_dT_dY = this->_dN_dY;

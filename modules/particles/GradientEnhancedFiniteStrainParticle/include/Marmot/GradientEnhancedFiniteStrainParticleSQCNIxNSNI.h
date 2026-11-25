@@ -86,8 +86,8 @@ namespace Marmot::Discretizations::Meshfree {
    * error of the U-U block and does not check the U-N block for this particle.
    *
    * For an axisymmetric particle, the second gradients are smoothed over the ring and the second moments are those of
-   * the ring (ParticleSection); the first-order terms of the ring's expansion are left out, see the page "Axisymmetric
-   * Particles" of the documentation.
+   * the ring (ParticleSectionIntegrals); the first-order terms of the ring's expansion are left out, see the page
+   * "Axisymmetric Particles" of the documentation.
    *
    * @tparam nDim      Spatial dimension (2: plane strain or axisymmetric, 3: 3D).
    * @tparam nVertices Number of vertices of the smoothing domain (4: Quad, 8: Hexa).
@@ -104,12 +104,11 @@ namespace Marmot::Discretizations::Meshfree {
                                                                            nVertices,
                                                                            nNonlocal,
                                                                            section >; ///< SQCNI base
-    using LagrangeCellType    = ParentSQCNIParticle::LagrangeCellType;   ///< geometry of the smoothing domain
 
-    using TensorD    = Fastor::Tensor< double, nDim >;                   ///< vector of size nDim
-    using TensorDD   = Fastor::Tensor< double, nDim, nDim >;             ///< second-order tensor
-    using TensorDDD  = Fastor::Tensor< double, nDim, nDim, nDim >;       ///< third-order tensor
-    using TensorDDDD = Fastor::Tensor< double, nDim, nDim, nDim, nDim >; ///< fourth-order tensor
+    using TensorD    = Fastor::Tensor< double, nDim >;                                ///< vector of size nDim
+    using TensorDD   = Fastor::Tensor< double, nDim, nDim >;                          ///< second-order tensor
+    using TensorDDD  = Fastor::Tensor< double, nDim, nDim, nDim >;                    ///< third-order tensor
+    using TensorDDDD = Fastor::Tensor< double, nDim, nDim, nDim, nDim >;              ///< fourth-order tensor
 
     TensorDD _momentsOfInertia_Undeformed; ///< second moments @f$ \boldsymbol{M}^0 @f$ of the undeformed domain
     TensorDD _momentsOfInertia_IntermediateReference; ///< second moments @f$ \boldsymbol{M}^Y @f$ in the
@@ -212,7 +211,7 @@ namespace Marmot::Discretizations::Meshfree {
      * @brief Evaluate the shape functions with the assigned kernel functions, with smoothed first and second
      * derivatives.
      *
-     * One boundary integration over the current smoothing domain (ParticleSection) gives both
+     * One boundary integration over the current smoothing domain (ParticleSectionIntegrals) gives both
      * @f$ \partial N_B/\partial\boldsymbol{Y} @f$ (from @f$ N_B @f$ at the face centers) and the second derivatives
      * (from @f$ \partial N_B/\partial\boldsymbol{Y} @f$ at the face centers).
      */
@@ -228,7 +227,7 @@ namespace Marmot::Discretizations::Meshfree {
                                                                          ParentPointParticle::_N.data() );
 
       ParentSQCNIParticle::SectionIntegrals::
-        smoothShapeFunctionGradients( this->_makeSmoothingDomainCell(),
+        smoothShapeFunctionGradients( this->smoothingDomain(),
                                       ParentPointParticle::_meshfreeApproximation,
                                       ParentPointParticle::_assignedKernelFunctions,
                                       ParentPointParticle::_N,

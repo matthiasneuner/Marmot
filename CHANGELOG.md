@@ -175,6 +175,14 @@ All notable changes to Marmot are documented in this file. The format follows
   nonlocal field the value the particle carries there. `getInterpolationVector` stays the exact shape functions at an
   arbitrary location. A constraint that measures a field at a point of the particle and distributes its force there
   with `G_B` is symmetric and conservative.
+- `Particle::updateShapeFunctions`: evaluate the shape functions anew where the particle is now, with the kernel
+  functions it holds, for a host whose search found the same kernel functions as before (the particle has moved, so
+  its shape functions have to be evaluated anew in every increment). `assignMeshfreeKernelFunctions` stores the kernel
+  functions and calls it, so the two give the same shape functions, bitwise; it is `final` in `GenericParticle`,
+  `GenericSDIParticle` and `GradientEnhancedFiniteStrainParticle`, and the SQCNI and NSNI particles override
+  `updateShapeFunctions` instead. **Breaking** for implementers of `Particle` outside Marmot: it is pure virtual, and a
+  particle derived from one of the three bases that overrode `assignMeshfreeKernelFunctions` moves its evaluation into
+  `updateShapeFunctions`.
 - `ReproducingKernelApproximation` and `ReproducingKernelApproximationImplicit`: an optional limit on the condition of
   the moment matrix (constructor argument `momentMatrixConditionLimit`, default none). The completeness order of a
   point whose moment matrix, scaled to a unit diagonal, has a larger condition number (1-norm estimate,
@@ -191,11 +199,6 @@ All notable changes to Marmot are documented in this file. The format follows
 - Faster reproducing kernel shape functions, with bitwise identical results: the kernels give value and gradient from
   one evaluation, the basis of every covering kernel is evaluated once per point (it was evaluated for the moment
   matrix and again for the shape functions), and the moment matrix is summed in local matrices.
-- One name for one quantity: the limit 2 / omega_max of the central difference method is the critical time step
-  everywhere (documentation, messages, and `CriticalTimeStep::IsotropicElasticStiffnessBound::criticalTimeStep`, was
-  `stableTimeIncrement`; the test helper `Testing::exactCriticalTimeStepOfTheElement`, was
-  `stableTimeIncrementOfTheElement`). **Breaking** for code that calls the two functions. The momentum buffer of
-  `Particle::computeLumpedMomentum` is named `pLumped` (was `mLumped`, the name of the mass buffer).
 - **Breaking:** `Element::getStateView` is no longer virtual: it checks the quadrature point index and calls the
   protected `Element::getStateViewAtQuadraturePoint`, which an element implements instead (rename the override).
   Callers are unchanged.
@@ -300,6 +303,11 @@ All notable changes to Marmot are documented in this file. The format follows
 - `GM7` overrides `computeStressExplicit`: the stress update without homogenizing the tangents of the microplanes, one
   update with the tangents an optional output (`stress_update`); stress and state variables are those of
   `computeStress`, bitwise. The explicit path of `GeneralGradientEnhancedDisplacementFiniteElement` takes it.
+- One name for one quantity: the limit 2 / omega_max of the central difference method is the critical time step
+  everywhere (documentation, messages, and `CriticalTimeStep::IsotropicElasticStiffnessBound::criticalTimeStep`, was
+  `stableTimeIncrement`; the test helper `Testing::exactCriticalTimeStepOfTheElement`, was
+  `stableTimeIncrementOfTheElement`). **Breaking** for code that calls the two functions. The momentum buffer of
+  `Particle::computeLumpedMomentum` is named `pLumped` (was `mLumped`, the name of the mass buffer).
 
 ### Deprecated
 - `BoundaryElement::computeSurfaceNormalVectorialLoadVectorForAxisymmetricElements()`: construct the boundary element

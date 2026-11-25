@@ -216,15 +216,13 @@ namespace Marmot::Discretizations::Meshfree {
                                                const SmoothingDomainUpdateType smoothingVolumeUpdateType );
 
     /**
-     * @brief Assign the kernel functions and compute the smoothed shape function gradients.
+     * @brief Evaluate the shape functions with the assigned kernel functions, with smoothed gradients.
      *
      * @f$ N_B @f$ is evaluated at the material point position, @f$ \partial N_B/\partial\boldsymbol{Y} @f$ as the
      * boundary integral over the current smoothing domain with one point per face (see the class description); the
      * test functions are set equal to the trial functions (before any VCI correction).
-     *
-     * @param[in] kernelFunctions Kernel functions of the nodes that support the particle.
      */
-    void assignMeshfreeKernelFunctions( const std::vector< const KernelFunction* >& kernelFunctions ) override;
+    void updateShapeFunctions() override;
 
     /// \brief Get the smoothing volume of the particle (in its section)
     /// \return The smoothing volume of the particle
@@ -891,15 +889,8 @@ namespace Marmot::Discretizations::Meshfree {
   }
 
   template < int nDim, int nVertices, int nNonlocal, Section section >
-  void GradientEnhancedFiniteStrainParticleSQCNI< nDim, nVertices, nNonlocal, section >::assignMeshfreeKernelFunctions(
-    const std::vector< const KernelFunction* >& kernelFunctions )
+  void GradientEnhancedFiniteStrainParticleSQCNI< nDim, nVertices, nNonlocal, section >::updateShapeFunctions()
   {
-
-    ParentPointParticle::_assignedKernelFunctions = kernelFunctions;
-
-    ParentPointParticle::_nNodes = static_cast< int >(
-      GradientEnhancedFiniteStrainParticle< nDim, nNonlocal, section >::_assignedKernelFunctions.size() );
-
     Eigen::Matrix< double, nDim, 1 > coords;
     ParentPointParticle::_mp.getCoordinatesAtCenter( coords.data() );
 

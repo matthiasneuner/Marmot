@@ -219,13 +219,14 @@ namespace {
       return Q;
     }
 
-    /// the nodes whose support lies in the interior: no evaluation point of the boundary of the patch in it
+    /// the nodes whose support lies in the interior: no evaluation point of the boundary of the patch in it; the axis
+    /// (r0 = 0) is no boundary of the body of revolution
     std::vector< int > interiorNodes() const
     {
       std::vector< int > interior;
       const double       R = supportRadius * h;
       for ( size_t A = 0; A < nodes.size(); A++ )
-        if ( nodes[A][0] - R > r0 && nodes[A][0] + R < r0 + nr * h && nodes[A][1] - R > z0 &&
+        if ( ( r0 == 0.0 || nodes[A][0] - R > r0 ) && nodes[A][0] + R < r0 + nr * h && nodes[A][1] - R > z0 &&
              nodes[A][1] + R < z0 + nz * h )
           interior.push_back( static_cast< int >( A ) );
       return interior;
@@ -254,11 +255,14 @@ namespace {
 
   // The patch tests of a uniform state, u_r = a r, u_z = b z (sigma_rr = sigma_tt, sigma_rz = 0, in equilibrium
   // without a body force): every particle sees the same deformation and stress, and the interior nodes have no force,
-  // from the undeformed state and again from the deformed one after an accepted increment.
-  void testUniformStatesArePatchTests( const ParticleType& type, double a, double b )
+  // from the undeformed state and again from the deformed one after an accepted increment. On a patch away from the
+  // axis (r0 > 0) and on one at the axis (r0 = 0), whose particles touch it with a face: a face on the axis has the
+  // ring weight 0, and the nodes near the axis are interior nodes.
+  void testUniformStatesArePatchTests( const ParticleType& type, double a, double b, double r0 )
   {
-    Patch patch( type, 2.0, 0.0, 0.25, 8, 8 );
-    throwExceptionOnFailure( patch.interiorNodes().size() == 16, "the patch has 16 interior nodes" );
+    Patch patch( type, r0, 0.0, 0.25, 8, 8 );
+    throwExceptionOnFailure( patch.interiorNodes().size() == ( r0 == 0.0 ? 24u : 16u ),
+                             "the patch has 16 interior nodes (24 at the axis)" );
 
     for ( auto [ar, bz] : std::vector< std::pair< double, double > >{ { a, 0.0 }, { 0.0, b }, { a, b } } ) {
       const Eigen::VectorXd Q = patch.field( [&]( double r, double z ) -> std::array< double, 2 > {
@@ -266,8 +270,8 @@ namespace {
       } );
       const auto [F, K]       = patch.forceAndTangent( Q );
       const double rel        = interiorForce( patch, F );
-      std::cout << type.name << ": patch test u_r = " << ar << " r, u_z = " << bz << " z: interior force / largest "
-                << rel << std::endl;
+      std::cout << type.name << ": patch test at r0 = " << r0 << ", u_r = " << ar << " r, u_z = " << bz
+                << " z: interior force / largest " << rel << std::endl;
       throwExceptionOnFailure( rel < 1e-11,
                                Marmot::Utilities::MakeString()
                                  << type.name << ": u_r = " << ar << " r, u_z = " << bz << " z: the interior force is "
@@ -299,8 +303,8 @@ namespace {
       return { 0.5 * a * r, -0.5 * b * z };
     } ) );
     const double rel  = interiorForce( patch, F );
-    std::cout << type.name << ": patch test, second increment from the deformed state: interior force / largest " << rel
-              << std::endl;
+    std::cout << type.name << ": patch test at r0 = " << r0
+              << ", second increment from the deformed state: interior force / largest " << rel << std::endl;
     throwExceptionOnFailure( rel < 1e-11,
                              Marmot::Utilities::MakeString()
                                << type.name << ": the second increment: the interior force is " << rel
@@ -308,10 +312,10 @@ namespace {
   }
 
   // The fields with a shear, u_z = c r and u_r = c z, whose stress needs a body force: the smoothed gradient and the
-  // hoop strain of every particle reproduce them exactly (the exact ring averages of linear fields).
-  void testLinearFieldsAreReproduced( const ParticleType& type, double c )
+  // hoop strain of every particle reproduce them exactly (the exact ring averages of linear fields), also at the axis.
+  void testLinearFieldsAreReproduced( const ParticleType& type, double c, double r0 )
   {
-    Patch patch( type, 2.0, 0.0, 0.25, 4, 4 );
+    Patch patch( type, r0, 0.0, 0.25, 4, 4 );
     for ( int which = 0; which < 2; which++ ) {
       const Eigen::VectorXd Q = patch.field( [&]( double r, double z ) -> std::array< double, 2 > {
         return which == 0 ? std::array< double, 2 >{ 0.0, c * r } : std::array< double, 2 >{ c * z, 0.0 };
@@ -341,6 +345,113 @@ namespace {
                                                                  << expected );
       }
     }
+  }
+
+  // The patch test with a load on the boundary: u_r = a r, u_z = b z, and on the outer faces of the patch the traction
+  // sigma n of its uniform stress as a PRESSURE, p = -sigma_nn. The load balances the internal force of every node,
+  // the boundary nodes included, to round-off: the pressure is integrated with the face rule of the smoothing, the
+  // rule of the integration constraint. On a patch at the axis (r0 = 0) the faces on the axis carry no load: the axis
+  // is no boundary. Then the tangent of the pressure against central differences, after an accepted increment, for an
+  // increment with all components.
+  void testTractionPatchTest( const ParticleType& type, double a, double b, double r0 )
+  {
+    Patch      patch( type, r0, 0.0, 0.25, 4, 4 );
+    const int  nBlock = type.nBlock;
+    const auto Q = patch.field( [&]( double r, double z ) -> std::array< double, 2 > { return { a * r, b * z }; } );
+
+    // the faces of particle (i, j) on the boundary of the patch (Abaqus: 1 z = z0, 2 r = r1, 3 z = z1, 4 r = r0)
+    const auto loadedFaces = [&]( int i, int j ) {
+      std::vector< int > faces;
+      if ( j == 0 )
+        faces.push_back( 1 );
+      if ( i == patch.nr - 1 )
+        faces.push_back( 2 );
+      if ( j == patch.nz - 1 )
+        faces.push_back( 3 );
+      if ( i == 0 && r0 > 0.0 )
+        faces.push_back( 4 );
+      return faces;
+    };
+
+    Eigen::VectorXd FInt = Eigen::VectorXd::Zero( patch.nDof() ), FLoad = Eigen::VectorXd::Zero( patch.nDof() );
+    for ( int j = 0; j < patch.nz; j++ )
+      for ( int i = 0; i < patch.nr; i++ ) {
+        const int       p      = j * patch.nr + i;
+        const auto      backup = patch.stateVars[p];
+        const auto      q      = patch.gather( p, Q );
+        const int       n      = static_cast< int >( q.size() );
+        Eigen::VectorXd f      = Eigen::VectorXd::Zero( n );
+        Eigen::MatrixXd k      = Eigen::MatrixXd::Zero( n, n );
+        patch.particles[p]->computePhysicsKernels( q.data(), f.data(), k.data(), 1.0, 1.0 );
+        patch.scatter( p, f, FInt );
+        // the Cauchy stress of the first increment, the Kirchhoff stress over det Delta F (3D)
+        const Eigen::Matrix3d sigma = patch.stateTensor( p, "stress" ) /
+                                      patch.stateTensor( p, "delta deformation gradient" ).determinant();
+        for ( int face : loadedFaces( i, j ) ) {
+          const double    pressure = face % 2 == 1 ? -sigma( 1, 1 ) : -sigma( 0, 0 );
+          Eigen::VectorXd fExt     = Eigen::VectorXd::Zero( n );
+          Eigen::MatrixXd kExt     = Eigen::MatrixXd::Zero( n, n );
+          patch.particles[p]->computeDistributedLoad( 0, face, &pressure, fExt.data(), kExt.data(), 1.0, 1.0 );
+          patch.scatter( p, fExt, FLoad );
+        }
+        patch.stateVars[p] = backup;
+      }
+    double largest = 0.0, residual = 0.0;
+    for ( size_t A = 0; A < patch.nodes.size(); A++ )
+      for ( int i = 0; i < 2; i++ ) {
+        largest  = std::max( largest, std::abs( FInt( A * nBlock + i ) ) );
+        residual = std::max( residual, std::abs( FInt( A * nBlock + i ) + FLoad( A * nBlock + i ) ) );
+      }
+    std::cout << type.name << ": traction patch test at r0 = " << r0 << ": largest nodal residual / largest force "
+              << residual / largest << std::endl;
+    throwExceptionOnFailure( residual < 1e-11 * largest,
+                             Marmot::Utilities::MakeString()
+                               << type.name << ": the traction patch test at r0 = " << r0 << ": the residual is "
+                               << residual / largest << " of the largest force" );
+
+    // the tangent of the pressure on the corner particle (r1, z1), faces 2 and 3
+    patch.forceAndTangent( patch.field( [&]( double r, double z ) -> std::array< double, 2 > {
+      return { 0.01 * r + 0.004 * z, -0.006 * z + 0.002 * r };
+    } ),
+                           true );
+    const int  p        = patch.nz * patch.nr - 1;
+    const int  n        = static_cast< int >( patch.nodesOfParticle[p].size() ) * nBlock;
+    auto&      particle = *patch.particles[p];
+    auto&      state    = patch.stateVars[p];
+    const auto load     = [&]( const Eigen::VectorXd& q, Eigen::MatrixXd* K ) {
+      const auto      backup = state;
+      Eigen::VectorXd f = Eigen::VectorXd::Zero( n ), fExt = Eigen::VectorXd::Zero( n );
+      Eigen::MatrixXd k = Eigen::MatrixXd::Zero( n, n ), kExt = Eigen::MatrixXd::Zero( n, n );
+      particle.computePhysicsKernels( q.data(), f.data(), k.data(), 1.0, 1.0 );
+      for ( int face : { 2, 3 } ) {
+        const double pressure = face == 2 ? 0.37 : -0.21;
+        particle.computeDistributedLoad( 0, face, &pressure, fExt.data(), kExt.data(), 1.0, 1.0 );
+      }
+      state = backup;
+      if ( K )
+        *K = kExt;
+      return fExt;
+    };
+    Eigen::VectorXd dQ = Eigen::VectorXd::Zero( n );
+    for ( int dof = 0; dof < n; dof++ )
+      if ( dof % nBlock < 2 )
+        dQ( dof ) = 0.01 * std::sin( 1.7 * ( dof + 1 ) );
+    Eigen::MatrixXd K;
+    load( dQ, &K );
+    Eigen::MatrixXd KNumerical( n, n );
+    for ( int c = 0; c < n; c++ ) {
+      const double    step = 1e-7;
+      Eigen::VectorXd e    = Eigen::VectorXd::Zero( n );
+      e( c )               = step;
+      KNumerical.col( c )  = ( load( dQ + e, nullptr ) - load( dQ - e, nullptr ) ) / ( 2 * step );
+    }
+    const double error = ( K - KNumerical ).norm() / KNumerical.norm();
+    std::cout << type.name << ": tangent of the pressure at r0 = " << r0
+              << " against central differences, relative error " << error << std::endl;
+    throwExceptionOnFailure( error < 1e-7,
+                             Marmot::Utilities::MakeString()
+                               << type.name << ": the tangent of the pressure is inconsistent, relative error "
+                               << error );
   }
 
   // The ring volume of every particle, 2 pi A r_c, and the lumped mass, rho 2 pi int R dA, node by node summing to it,
@@ -716,8 +827,8 @@ namespace {
     }
   }
 
-  // A particle with a vertex at r < 0 or its center on the axis is refused, and so are VCI and CWFCORRECTION; an
-  // increment that pulls the ring through the axis throws.
+  // A particle with a vertex at r < 0 is refused, one that touches the axis with a face is accepted; VCI and
+  // CWFCORRECTION are refused; an increment that pulls the ring through the axis throws.
   void testRefusals( const ParticleType& type )
   {
     ReproducingKernelApproximation approximation{ 2, 1 };
@@ -746,10 +857,6 @@ namespace {
                                create( { -0.1, 0.0, 0.2, 0.0, 0.2, 0.3, -0.1, 0.3 } );
                              } ),
                              type.name + ": a vertex at r < 0 is refused" );
-    throwExceptionOnFailure( throws( [&]() {
-                               create( { -0.2, 0.0, 0.0, 0.0, 0.0, 0.3, -0.2, 0.3 } );
-                             } ),
-                             type.name + ": a particle in r < 0 is refused" );
     throwExceptionOnFailure( !throws( [&]() {
       create( { 0.0, 0.0, 0.2, 0.0, 0.2, 0.3, 0.0, 0.3 } );
     } ),
@@ -799,10 +906,15 @@ namespace {
 int main()
 {
   std::vector< std::function< void() > > testFunctions;
-  testFunctions.push_back( []() { testUniformStatesArePatchTests( displacement, 0.02, -0.01 ); } );
-  testFunctions.push_back( []() { testUniformStatesArePatchTests( gradientEnhanced, 2e-4, -1e-4 ); } );
+  for ( double r0 : { 2.0, 0.0 } ) {
+    testFunctions.push_back( [r0]() { testUniformStatesArePatchTests( displacement, 0.02, -0.01, r0 ); } );
+    testFunctions.push_back( [r0]() { testUniformStatesArePatchTests( gradientEnhanced, 2e-4, -1e-4, r0 ); } );
+    testFunctions.push_back( [r0]() { testTractionPatchTest( displacement, 0.02, -0.01, r0 ); } );
+    testFunctions.push_back( [r0]() { testTractionPatchTest( gradientEnhanced, 2e-4, -1e-4, r0 ); } );
+    for ( const auto* type : { &displacement, &gradientEnhanced } )
+      testFunctions.push_back( [type, r0]() { testLinearFieldsAreReproduced( *type, 0.01, r0 ); } );
+  }
   for ( const auto* type : { &displacement, &gradientEnhanced } ) {
-    testFunctions.push_back( [type]() { testLinearFieldsAreReproduced( *type, 0.01 ); } );
     testFunctions.push_back( [type]() { testRingVolumeAndLumpedMass( *type ); } );
     testFunctions.push_back( [type]() { testTangent( *type ); } );
     testFunctions.push_back( [type]() { testRefusals( *type ); } );

@@ -133,8 +133,8 @@ namespace Marmot::Discretizations::MaterialPoints {
    * In 2D (@c nDim = 2) all tensors are stored in 3D, the material is evaluated through
    * Marmot::Materials::MaterialGradientEnhancedFiniteStrain::computePlaneStrain, and the in-plane parts are handed out.
    * The out-of-plane stretch @f$ \Delta F_{33} @f$ of the increment is 1 in plane strain; an axisymmetric particle sets
-   * it to the hoop stretch increment (incrementOutOfPlaneStretch()), so that @f$ F_{33} @f$ is the hoop stretch, as
-   * for the axisymmetric elements. In 2D, the response and the tangents also hold the out-of-plane parts the hoop
+   * it to the hoop stretch increment (addToOutOfPlaneStretchIncrement()), so that @f$ F_{33} @f$ is the hoop stretch,
+   * as for the axisymmetric elements. In 2D, the response and the tangents also hold the out-of-plane parts the hoop
    * terms of an axisymmetric particle need (Response::tau33, Tangents::outOfPlane, Tangents::dTau33_dN and
    * Tangents::dL_dDeltaF33).
    *
@@ -481,25 +481,27 @@ namespace Marmot::Discretizations::MaterialPoints {
                                const std::array< TensorD, nNonlocal >& nonlocalFieldGradientIncrement );
 
     /**
-     * @brief 2D: add to the out-of-plane stretch of the increment, @f$ \Delta F_{33} \mathrel{+}= \delta F_{33} @f$
-     * (1 after prepareYourself(), and in plane strain): the hoop stretch of an axisymmetric particle.
-     * @param[in] outOfPlaneStretchIncrement @f$ \delta F_{33} @f$, e.g. @f$ \Delta u_r / r @f$.
+     * @brief 2D: add to the out-of-plane stretch increment, @f$ \Delta F_{33} \mathrel{+}= \delta @f$ (@f$ \Delta
+     * F_{33} @f$ is 1 after prepareYourself(), and stays 1 in plane strain): the hoop stretch increment of an
+     * axisymmetric particle.
+     * @param[in] delta @f$ \delta @f$, e.g. @f$ \Delta u_r / \bar r @f$.
      * @throws std::logic_error for a 3D material point.
      */
-    void incrementOutOfPlaneStretch( [[maybe_unused]] double outOfPlaneStretchIncrement )
+    void addToOutOfPlaneStretchIncrement( [[maybe_unused]] double delta )
     {
       if constexpr ( nDim == 2 )
-        state->dx_dY( 2, 2 ) += outOfPlaneStretchIncrement;
+        state->dx_dY( 2, 2 ) += delta;
       else
         throw std::logic_error( "GradientEnhancedFiniteStrainMaterialPoint: the out-of-plane stretch is 2D only" );
     };
 
     /**
-     * @brief 2D: the out-of-plane stretch of the increment.
+     * @brief 2D: the out-of-plane stretch increment, the 33 component of @f$ \Delta\boldsymbol{F} @f$ (not of
+     * @f$ \boldsymbol{F} @f$).
      * @return @f$ \Delta F_{33} @f$ (1 in plane strain, the hoop stretch increment of an axisymmetric particle).
      * @throws std::logic_error for a 3D material point.
      */
-    double outOfPlaneStretch() const
+    double outOfPlaneStretchIncrement() const
     {
       if constexpr ( nDim == 2 )
         return state->dx_dY( 2, 2 );

@@ -29,7 +29,7 @@
 #include "Marmot/MarmotMeshfreeApproximation.h"
 #include "Marmot/MarmotMonomialBasisFunctions.h"
 #include "Marmot/MarmotParticle.h"
-#include "Marmot/MarmotParticleSectionIntegrals.h" // Hoop
+#include "Marmot/MarmotParticleSectionIntegrals.h" // Hoop, checkVCIIsAvailable
 #include "Marmot/MarmotParticleStiffness.h"
 #include "Marmot/MarmotTensor.h"
 #include "Marmot/MarmotUtils.h"
@@ -621,13 +621,8 @@ namespace Marmot::Discretizations::Meshfree {
      */
     int vci_getNumberOfConstraints() override
     {
-      if constexpr ( isAxisymmetric )
-        throw std::invalid_argument( Marmot::Utilities::MakeString()
-                                     << __PRETTY_FUNCTION__
-                                     << ": VCI is not available for an axisymmetric particle; its ring-weighted "
-                                        "smoothing satisfies the linear integration constraint by itself" );
-      else
-        return _nVCIConstraints;
+      checkVCIIsAvailable< section >( __PRETTY_FUNCTION__ );
+      return _nVCIConstraints;
     }
 
     /**
@@ -806,8 +801,7 @@ namespace Marmot::Discretizations::Meshfree {
     /**
      * @brief Evaluate the material point for an interpolated increment: reset it to the accepted state, add the
      * increment (and, for an axisymmetric particle, the hoop stretch increment @f$ \Delta u_r / \bar r @f$ of the
-     * center, refused if it pulls the ring through the axis, Hoop::checkStretchIncrement()), and compute its response
-     * and tangents.
+     * center, Hoop::addStretchIncrement()), and compute its response and tangents.
      * @param[in] du    @f$ \Delta\boldsymbol{u} @f$ at the center.
      * @param[in] du_dY @f$ \partial\Delta\boldsymbol{u}/\partial\boldsymbol{Y} @f$.
      * @param[in] dn    @f$ \Delta\bar{N}_K @f$.
@@ -821,18 +815,6 @@ namespace Marmot::Discretizations::Meshfree {
                                 const std::array< Fastor::Tensor< double, nDim >, nNonlocal >& dn_dY,
                                 double                                                         timeNew,
                                 double                                                         dT );
-
-    /**
-     * @brief The radius of the particle center in the intermediate reference configuration, where the shape
-     * functions are evaluated.
-     * @return @f$ \bar r = Y_1 @f$ (axisymmetric particles).
-     */
-    double radiusOfCenter() const
-    {
-      std::array< double, nDim > center;
-      _mp.getCoordinatesAtCenter( center.data() );
-      return center[0];
-    }
 
     /**
      * @brief Add the hoop terms of the axisymmetric section to the stiffness of node @p A (nothing for the Cartesian
@@ -868,9 +850,8 @@ namespace Marmot::Discretizations::Meshfree {
      */
     void setVCIOrder( int order )
     {
-      if ( isAxisymmetric && order != 0 )
-        throw std::invalid_argument( Marmot::Utilities::MakeString()
-                                     << __PRETTY_FUNCTION__ << ": VCI is not available for an axisymmetric particle" );
+      if ( order != 0 )
+        checkVCIIsAvailable< section >( __PRETTY_FUNCTION__ );
       _vciOrder = order;
       // number of monomials of degree <= order in nDim variables
       _nVCIConstraints = nDim == 2 ? ( order + 1 ) * ( order + 2 ) / 2
@@ -1013,7 +994,11 @@ namespace Marmot::Discretizations::Meshfree {
       r_U = ( +einsum< i, ij >( dT_A_dx, S ) ) * V0;
 
       if constexpr ( isAxisymmetric )
-        r_U( 0 ) += Hoop::force( T_A, radiusOfCenter(), _mp.outOfPlaneStretch(), _mp.response.tau33, V0 );
+        r_U( 0 ) += Hoop::force( T_A,
+                                 Hoop::radiusOfCenter( _mp ),
+                                 _mp.outOfPlaneStretchIncrement(),
+                                 _mp.response.tau33,
+                                 V0 );
 
       // add inertia
       r_U += density0 * a * T_A * V0;
@@ -1111,8 +1096,8 @@ namespace Marmot::Discretizations::Meshfree {
       const auto&  t        = _mp.tangents;
       const double V0       = getVolumeUndeformed();
       const double T_A      = _T( A );
-      const double r        = radiusOfCenter();
-      const double deltaF33 = _mp.outOfPlaneStretch();
+      const double r        = Hoop::radiusOfCenter( _mp );
+      const double deltaF33 = _mp.outOfPlaneStretchIncrement();
 
       Hoop::addStiffnessOfNode( T_A,
                                 dT_A_dx,
@@ -1211,11 +1196,8 @@ namespace Marmot::Discretizations::Meshfree {
   {
     _mp.prepareYourself( timeNew, dT );
     _mp.incrementDeformation( du, du_dY, dn, dn_dY );
-    if constexpr ( isAxisymmetric ) {
-      const double r = radiusOfCenter();
-      _mp.incrementOutOfPlaneStretch( du( 0 ) / r );
-      Hoop::checkStretchIncrement( _mp.outOfPlaneStretch(), r, _mp.getMaterialPointNumber() );
-    }
+    if constexpr ( isAxisymmetric )
+      Hoop::addStretchIncrement( _mp, du( 0 ) );
     _mp.computeYourself( timeNew, dT );
   }
 
@@ -1273,7 +1255,11 @@ namespace Marmot::Discretizations::Meshfree {
 
       Tensor< double, nDim > r_U = einsum< i, ij >( dT_A_dx, S ) * V0;
       if constexpr ( isAxisymmetric )
-        r_U( 0 ) += Hoop::force( T_A, radiusOfCenter(), _mp.outOfPlaneStretch(), _mp.response.tau33, V0 );
+        r_U( 0 ) += Hoop::force( T_A,
+                                 Hoop::radiusOfCenter( _mp ),
+                                 _mp.outOfPlaneStretchIncrement(),
+                                 _mp.response.tau33,
+                                 V0 );
       P.template segment< nDim >( idxA_u ) += Eigen::Map< const Eigen::Matrix< double, nDim, 1 > >( r_U.data() );
 
       for ( int kNl = 0; kNl < nNonlocal; kNl++ ) {

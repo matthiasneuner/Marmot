@@ -69,12 +69,12 @@ namespace Marmot::Discretizations::Meshfree {
    * The particle geometry also provides the faces for distributed loads: a follower pressure and the consistent weak
    * form (CWF) correction, see computeDistributedLoad().
    *
-   * The volume, the smoothed gradients and the surface vectors of the faces are those of the section
-   * (ParticleSectionIntegrals): for Section::Axisymmetric, the ring volume, the ring-weighted smoothed gradient with
-   * its area term and two Gauss points per face, and the ring of the face center times its surface vector. An
-   * axisymmetric particle needs the update type `DeformationGradient` (smoothing domains that tile the body, for the
-   * integration constraint), refuses a domain that is not in the meridian half plane, and supports the distributed load
-   * `PRESSURE` only. See the page "Axisymmetric Particles" of the documentation.
+   * The volume, the smoothed gradients and the face loads are those of the section (ParticleSectionIntegrals): for
+   * Section::Axisymmetric, the ring volume, the ring-weighted smoothed gradient with its area term, and two Gauss
+   * points per face, both for the smoothing and for a load on the face. An axisymmetric particle needs the update type
+   * `DeformationGradient` (smoothing domains that tile the body, for the integration constraint), refuses a vertex at
+   * @f$ r < 0 @f$ (ParticleSectionIntegrals::checkParticle()), and supports the distributed load `PRESSURE` only. See
+   * the page "Axisymmetric Particles" of the documentation.
    *
    * @tparam nDim The number of dimensions (e.g., 2 for 2D, 3 for 3D).
    * @tparam nVertices The number of vertices defining the particle's geometry.
@@ -121,9 +121,8 @@ namespace Marmot::Discretizations::Meshfree {
      * @param[in] sizeMaterialProperties The size of the material properties array.
      * @param[in] approximation The meshfree approximation object used for shape functions.
      * @param[in] smoothingVolumeUpdateType The strategy for updating the smoothing domain's volume.
-     * @throws std::invalid_argument if the provided volume is not zero, and for an axisymmetric particle outside the
-     * meridian half plane (ParticleSectionIntegrals::checkDomain()) or with another update type than
-     * `DeformationGradient`.
+     * @throws std::invalid_argument if the provided volume is not zero, and for an axisymmetric particle the section
+     * cannot integrate (ParticleSectionIntegrals::checkParticle()).
      */
     DisplacementParticleSQCNI( int                                                          elementID,
                                const double*                                                nodeCoordinates,
@@ -224,17 +223,8 @@ namespace Marmot::Discretizations::Meshfree {
      */
     const std::unordered_map< std::string, int >& getSupportedDistributedLoadTypes() const override
     {
-      if constexpr ( SectionIntegrals::isAxisymmetric ) {
-        static const std::unordered_map< std::string, int > _supportedDistributedLoadTypes = {
-          { "PRESSURE", DisplacementParticle< nDim, section >::Pressure } };
-        return _supportedDistributedLoadTypes;
-      }
-      else {
-        static const std::unordered_map< std::string, int > _supportedDistributedLoadTypes =
-          { { "PRESSURE", DisplacementParticle< nDim, section >::Pressure },
-            { "CWFCORRECTION", DisplacementParticle< nDim, section >::CWFCorrection } };
-        return _supportedDistributedLoadTypes;
-      }
+      return SectionIntegrals::template supportedFaceLoads< ParentPointParticle::Pressure,
+                                                            ParentPointParticle::CWFCorrection >();
     };
 
     /**
@@ -268,8 +258,7 @@ namespace Marmot::Discretizations::Meshfree {
     virtual double getVolumeDeformed() const
     {
       if constexpr ( SectionIntegrals::isAxisymmetric )
-        return SectionIntegrals::volume(
-          typename ParticleDomainType::LagrangeCellType( _particleDomain.getGeometryDeformedVertexCoordinates() ) );
+        return SectionIntegrals::volume( _particleDomain.geometryDeformed() );
       else
         return this->getVolumeUndeformed() * Fastor::determinant( this->dY_dX() );
     }
@@ -326,8 +315,8 @@ namespace Marmot::Discretizations::Meshfree {
      *
      * This method contributes to the R_AiC_RowMajor matrix, which is part of the VCI formulation.
      * It involves shape functions, monomial basis, and boundary surface vectors:
-     * @f$ R_{AiC} \mathrel{+}= T_A(\boldsymbol{Y}_N)\,P_C(\boldsymbol{Y}_N)\,(N\,dA_Y)_i @f$, with the evaluation
-     * point and the boundary vector of getBoundaryVectorIntermediate().
+     * @f$ R_{AiC} \mathrel{+}= \sum_g T_A(\boldsymbol{Y}_g)\,P_C(\boldsymbol{Y}_g)\,(n_i\,dA)_g @f$, with the face
+     * quadrature of faceQuadratureIntermediate().
      *
      * @param[in,out] R_AiC_RowMajor Pointer to the row-major matrix for VCI constraints.
      * @param[in] boundarySurfaceVector Pointer to the boundary surface vector (not used; the face of the particle
@@ -338,49 +327,54 @@ namespace Marmot::Discretizations::Meshfree {
                                               const double* boundarySurfaceVector,
                                               int           boundaryFaceID ) override
     {
-      using namespace Fastor;
+      const auto face = faceQuadratureIntermediate( boundaryFaceID );
+      for ( int g = 0; g < SectionIntegrals::nPointsPerFace; g++ ) {
+        const Eigen::Matrix< double, nDim, 1 > Y_N       = face.points.col( g );
+        const Eigen::Matrix< double, nDim, 1 > N_dAY     = SectionIntegrals::weight( Y_N ) * face.n_dA;
+        Eigen::MatrixXd                        TBoundary = Eigen::MatrixXd::Zero( 1, this->_nNodes );
 
-      const auto [N_dAY, Y_N]   = getBoundaryVectorIntermediate( boundaryFaceID );
-      Eigen::MatrixXd TBoundary = Eigen::MatrixXd::Zero( 1, this->_nNodes );
+        this->_meshfreeApproximation.computeShapeFunctions( Y_N.data(),
+                                                            this->_assignedKernelFunctions,
+                                                            TBoundary.data() );
 
-      this->_meshfreeApproximation.computeShapeFunctions( Y_N.data(),
-                                                          this->_assignedKernelFunctions,
-                                                          TBoundary.data() );
+        // get P for the exact integration location at the boundary
+        auto PBoundary = this->_P;
+        Math::computeMonomialBasis( this->_vciOrder, Y_N, PBoundary );
 
-      // get P for the exact integration location at the boundary
-      auto PBoundary = this->_P;
-      Math::computeMonomialBasis( this->_vciOrder, Eigen::Matrix< double, nDim, 1 >( Y_N.data() ), PBoundary );
-
-      for ( int A = 0; A < this->_nNodes; A++ )
-        for ( int i = 0; i < nDim; i++ )
-          for ( int C = 0; C < this->_nVCIConstraints; C++ )
-            R_AiC_RowMajor[A * ( nDim * this->_nVCIConstraints ) + i * this->_nVCIConstraints + C] += TBoundary( A ) *
-                                                                                                      PBoundary( C ) *
-                                                                                                      N_dAY[i];
+        for ( int A = 0; A < this->_nNodes; A++ )
+          for ( int i = 0; i < nDim; i++ )
+            for ( int C = 0; C < this->_nVCIConstraints; C++ )
+              R_AiC_RowMajor[A * ( nDim * this->_nVCIConstraints ) + i * this->_nVCIConstraints + C] += TBoundary( A ) *
+                                                                                                        PBoundary( C ) *
+                                                                                                        N_dAY[i];
+      }
     };
 
     /**
-     * @brief Retrieves the boundary surface vector and the face center coordinates in the intermediate configuration.
-     * @details The boundary vector @f$ \boldsymbol{N}\,dA_Y @f$ is that of the face of the particle geometry (for an
-     * axisymmetric particle that of its ring, times @f$ 2\pi r @f$ of the evaluation point). The
-     * evaluation point is the face center of the smoothing domain for the update type DeformationGradient (SQCNI),
-     * and the face center of the particle geometry otherwise.
+     * @brief The quadrature of a face of the particle geometry in the intermediate configuration, for the loads on it.
+     * @details The rule of the section (ParticleSectionIntegrals::faceQuadrature()) on the face of the particle
+     * geometry; for the update type DeformationGradient (SQCNI) the geometry is the smoothing domain, so that a face
+     * load is integrated with the rule of the smoothing.
      * @param[in] boundaryFaceID The ID of the boundary face.
-     * @return A tuple containing the boundary surface vector (N_dAY) and the face center coordinates (Y_N).
+     * @return The points and their share in the area vector of the face.
      */
-    std::tuple< TensorD, TensorD > getBoundaryVectorIntermediate( int boundaryFaceID ) const;
+    typename SectionIntegrals::FaceQuadrature faceQuadratureIntermediate( int boundaryFaceID ) const
+    {
+      return SectionIntegrals::faceQuadrature( _particleDomain.geometryDeformed(), boundaryFaceID );
+    }
 
     /**
      * @brief Computes the distributed load and its derivative with respect to nodal displacements.
      *
      * This method handles different types of distributed loads, such as pressure,
-     * and calculates the external force vector and its tangent matrix. With @f$ \boldsymbol{N}\,dA_Y @f$ and
-     * @f$ \boldsymbol{Y}_N @f$ from getBoundaryVectorIntermediate(), both types assemble a face force
-     * @f$ \boldsymbol{f} @f$ as @f$ r_{Aj} \mathrel{-}= T_A(\boldsymbol{Y}_N)\,f_j @f$, together with
-     * @f$ \partial f_j/\partial \Delta F_{kL}\,\partial N_B/\partial Y_L @f$ in the tangent:
+     * and calculates the external force vector and its tangent matrix. On each point @f$ \boldsymbol{Y}_N @f$ of the
+     * face quadrature (faceQuadratureIntermediate()), with its area vector @f$ \boldsymbol{N}\,dA_Y @f$, both types
+     * assemble a face force @f$ \boldsymbol{f} @f$ as @f$ r_{Aj} \mathrel{-}= T_A(\boldsymbol{Y}_N)\,f_j @f$, together
+     * with @f$ \partial f_j/\partial \Delta F_{kL}\,\partial N_B/\partial Y_L @f$ in the tangent:
      * - Pressure: @f$ \boldsymbol{f} = -\Delta J\,\Delta\boldsymbol{F}^{-\mathsf T}\,p\,\boldsymbol{N}\,dA_Y @f$
      *   (Nanson's formula from @f$ \boldsymbol{Y} @f$ to @f$ \boldsymbol{x} @f$), with @f$ p @f$ = load[0]; as for
-     *   the elements, a positive pressure pushes on the face (against the outward normal).
+     *   the elements, a positive pressure pushes on the face (against the outward normal); see
+     *   ParticleSectionIntegrals::addPressure().
      * - CWFCorrection: @f$ \boldsymbol{f} = \boldsymbol{\tau}\,\Delta\boldsymbol{F}^{-\mathsf T}\,\boldsymbol{N}\,
      *   dA_Y / J_Y @f$, @f$ J_Y = \det\boldsymbol{F}_n @f$, i.e. the Cauchy traction
      *   @f$ \boldsymbol{\sigma}\,\boldsymbol{n}\,da @f$ of the particle's own stress on the face; its tangent
@@ -396,10 +390,9 @@ namespace Marmot::Discretizations::Meshfree {
      * displacements will be accumulated.
      * @param[in] timeNew The current time.
      * @param[in] dT The time increment.
-     * For an axisymmetric particle, @f$ \boldsymbol{N}\,dA_Y @f$ is the surface vector of the ring, the pressure force
-     * includes the hoop stretch increment @f$ \Delta F_{\theta\theta} @f$ of the particle (the 3D Nanson formula),
-     * which adds @f$ f_j N_B / (\bar r\,\Delta F_{\theta\theta}) @f$ to the tangent with respect to the radial
-     * increment of node B, and CWFCorrection is not available.
+     * For an axisymmetric particle, the face carries two Gauss points, the rule of the smoothing, and the pressure
+     * force of each is that of the half plane times the ring of the point after the increment
+     * (Hoop::ringOfFacePoint()), with its derivative in the tangent; CWFCorrection is not available.
      *
      * @throws std::invalid_argument if an invalid DistributedLoad type is specified, and for CWFCorrection of an
      * axisymmetric particle.
@@ -457,14 +450,10 @@ namespace Marmot::Discretizations::Meshfree {
                                              approximation ),
       _particleDomain( vertexCoordinates, nVertexCoordinates, smoothingVolumeUpdateType )
   {
-    if constexpr ( SectionIntegrals::isAxisymmetric ) {
-      SectionIntegrals::checkDomain( smoothingDomain(), elementID );
-      if ( smoothingVolumeUpdateType != ParticleDomainType::SmoothingDomainUpdateType::DeformationGradient )
-        throw std::invalid_argument( Marmot::Utilities::MakeString()
-                                     << __PRETTY_FUNCTION__
-                                     << ": an axisymmetric particle needs the smoothing domain update "
-                                        "DeformationGradient, whose smoothing domains tile the body" );
-    }
+    SectionIntegrals::checkParticle( smoothingDomain(),
+                                     smoothingVolumeUpdateType ==
+                                       ParticleDomainType::SmoothingDomainUpdateType::DeformationGradient,
+                                     elementID );
     if ( volume != 0 ) {
       throw std::
         invalid_argument( Marmot::Utilities::MakeString()
@@ -484,91 +473,21 @@ namespace Marmot::Discretizations::Meshfree {
                                                                                       double        dT ) const
   {
 
-    if ( SectionIntegrals::isAxisymmetric && type == DisplacementParticle< nDim, section >::CWFCorrection )
-      throw std::invalid_argument( Marmot::Utilities::MakeString()
-                                   << __PRETTY_FUNCTION__
-                                   << ": CWFCORRECTION is not available for an axisymmetric particle" );
+    SectionIntegrals::checkFaceLoadIsAvailable( type == DisplacementParticle< nDim, section >::CWFCorrection,
+                                                __PRETTY_FUNCTION__ );
 
     switch ( type ) {
 
     case DisplacementParticle< nDim, section >::Pressure: {
-
-      const auto&   _nNodes       = this->_nNodes; // From GenericParticle
-      constexpr int nodeBlockSize = nDim;
-
-      const auto [N_dAY, Y_N] = getBoundaryVectorIntermediate( boundaryFaceID );
-
-      // a positive pressure pushes on the face: the traction acts against the outward normal
-      TensorD fY = -load_[0] * N_dAY;
-
-      Eigen::Map< Eigen::VectorXd > P( fExt, _nNodes * nodeBlockSize );
-      Eigen::Map< Eigen::MatrixXd > K( dFExt_ddQ, _nNodes * nodeBlockSize, _nNodes * nodeBlockSize );
-
-      using namespace Fastor;
-      using namespace Math::Tensors::FastorIndices;
-
-      Tensor< double, nDim, nDim > Eye;
-      Eye.eye();
-
-      // apply Nanson's formula
-      const auto deltaF = this->dx_dY(); // From DisplacementParticle
-
-      const Tensor< double, nDim, nDim > deltaFInv = inverse( deltaF );
-      const double                       deltaJ    = determinant( deltaF );
-
-      TensorD f = deltaJ * transpose( deltaFInv ) % fY;
-
-      const Tensor< double, nDim, nDim, nDim, nDim > dFInv_dF = -einsum< Ik, Ki, to_IikK >( deltaFInv, deltaFInv );
-
-      Tensor< double, nDim, nDim, nDim > df_dDeltaF = outer( f, transpose( deltaFInv ) ) +
-                                                      deltaJ * einsum< IikK, Index< I_ > >( dFInv_dF, fY );
-
-      // the ring of the face grows with the hoop stretch of the particle: Nanson's formula with the 3D increment,
-      // whose Jacobian is deltaJ * deltaF_33, and d deltaF_33 / d du_r = 1 / r of the center
-      [[maybe_unused]] double r = 1.0, deltaF33 = 1.0;
-      if constexpr ( SectionIntegrals::isAxisymmetric ) {
-        r        = this->radiusOfCenter();
-        deltaF33 = this->_mp->outOfPlaneStretch();
-        f *= deltaF33;
-        df_dDeltaF *= deltaF33;
-      }
-
-      TensorD r_U( 0.0 );
-
-      Eigen::MatrixXd testBoundary = Eigen::MatrixXd::Zero( 1, this->_nNodes ); // From GenericParticle
-
-      this->_meshfreeApproximation.computeShapeFunctions( Y_N.data(),
-                                                          this->_assignedKernelFunctions,
-                                                          testBoundary.data() );
-
-      for ( int A = 0; A < _nNodes; A++ ) {
-        const int idxA_u = nodeBlockSize * A;
-
-        r_U = testBoundary( A ) * f;
-
-        {
-          using namespace Eigen;
-          P.template segment< nDim >( idxA_u ) -= Map< Matrix< double, nDim, 1 > >( r_U.data() );
-        }
-
-        for ( int B = 0; B < _nNodes; B++ ) {
-          const int  idxB_u  = nodeBlockSize * B;
-          const auto dN_B_dY = TensorMap< const double, nDim >( this->_dN_dY.col( B ).data() ); // From GenericParticle
-
-          const Tensor< double, nDim, nDim > df_ddQU_B = testBoundary( A ) * einsum< ijk, k >( df_dDeltaF, dN_B_dY );
-
-          {
-            using namespace Eigen;
-            K.template block< nDim, nDim >( idxA_u, idxB_u ) -= Map< Matrix< double, nDim, nDim > >(
-              torowmajor( df_ddQU_B ).data() );
-          }
-
-          if constexpr ( SectionIntegrals::isAxisymmetric )
-            for ( int i = 0; i < nDim; i++ )
-              K( idxA_u + i, idxB_u ) -= testBoundary( A ) * f( i ) * this->_N( B ) / ( r * deltaF33 );
-        }
-      }
-
+      SectionIntegrals::template addPressure< nDim >( faceQuadratureIntermediate( boundaryFaceID ),
+                                                      load_[0],
+                                                      *this->_mp,
+                                                      this->_N,
+                                                      this->_dN_dY,
+                                                      this->_meshfreeApproximation,
+                                                      this->_assignedKernelFunctions,
+                                                      fExt,
+                                                      dFExt_ddQ );
       break;
     }
     case DisplacementParticle< nDim, section >::CWFCorrection: {
@@ -576,12 +495,15 @@ namespace Marmot::Discretizations::Meshfree {
       const auto&   _nNodes       = this->_nNodes;
       constexpr int nodeBlockSize = nDim;
 
-      const auto [N_dAY, Y_N] = getBoundaryVectorIntermediate( boundaryFaceID );
-
       Eigen::Map< Eigen::VectorXd > P( fExt, _nNodes * nodeBlockSize );
       Eigen::Map< Eigen::MatrixXd > K( dFExt_ddQ, _nNodes * nodeBlockSize, _nNodes * nodeBlockSize );
 
       using namespace Fastor;
+
+      // one point with the weight 1, the Cartesian rule of the face: an axisymmetric particle has no CWF correction
+      const auto                             face = faceQuadratureIntermediate( boundaryFaceID );
+      const Eigen::Matrix< double, nDim, 1 > Y_N  = face.points.col( 0 );
+      const TensorD                          N_dAY( face.n_dA.data() );
 
       const auto& S = _mp->response.S;
       const auto& t = _mp->tangents;
@@ -694,54 +616,15 @@ namespace Marmot::Discretizations::Meshfree {
     switch ( type ) {
 
     case DisplacementParticle< nDim, section >::Pressure: {
-
-      const auto&   _nNodes       = this->_nNodes; // From GenericParticle
-      constexpr int nodeBlockSize = nDim;
-
-      const auto [N_dAY, Y_N] = getBoundaryVectorIntermediate( boundaryFaceID );
-
-      // a positive pressure pushes on the face: the traction acts against the outward normal
-      TensorD fY = -load[0] * N_dAY;
-
-      Eigen::Map< Eigen::VectorXd > P( fExt, _nNodes * nodeBlockSize );
-
-      using namespace Fastor;
-      using namespace Math::Tensors::FastorIndices;
-
-      Tensor< double, nDim, nDim > Eye;
-      Eye.eye();
-
-      // apply Nanson's formula
-      const auto deltaF = this->dx_dY(); // From DisplacementParticle
-
-      const Tensor< double, nDim, nDim > deltaFInv = inverse( deltaF );
-      const double                       deltaJ    = determinant( deltaF );
-
-      TensorD f = deltaJ * transpose( deltaFInv ) % fY;
-
-      // the ring of the face grows with the hoop stretch of the particle (see computeDistributedLoad())
-      if constexpr ( SectionIntegrals::isAxisymmetric )
-        f *= this->_mp->outOfPlaneStretch();
-
-      TensorD r_U( 0.0 );
-
-      Eigen::MatrixXd testBoundary = Eigen::MatrixXd::Zero( 1, this->_nNodes ); // From GenericParticle
-
-      this->_meshfreeApproximation.computeShapeFunctions( Y_N.data(),
-                                                          this->_assignedKernelFunctions,
-                                                          testBoundary.data() );
-
-      for ( int A = 0; A < _nNodes; A++ ) {
-        const int idxA_u = nodeBlockSize * A;
-
-        r_U = testBoundary( A ) * f;
-
-        {
-          using namespace Eigen;
-          P.template segment< nDim >( idxA_u ) -= Map< Matrix< double, nDim, 1 > >( r_U.data() );
-        }
-      }
-
+      SectionIntegrals::template addPressure< nDim >( faceQuadratureIntermediate( boundaryFaceID ),
+                                                      load[0],
+                                                      *this->_mp,
+                                                      this->_N,
+                                                      this->_dN_dY,
+                                                      this->_meshfreeApproximation,
+                                                      this->_assignedKernelFunctions,
+                                                      fExt,
+                                                      nullptr );
       break;
     }
     default: {
@@ -749,39 +632,6 @@ namespace Marmot::Discretizations::Meshfree {
                                    << __PRETTY_FUNCTION__ << ": invalid DistributedLoad type specified" );
     }
     }
-  }
-
-  template < int nDim, int nVertices, Section section >
-  std::tuple< typename DisplacementParticleSQCNI< nDim, nVertices, section >::TensorD,
-              typename DisplacementParticleSQCNI< nDim, nVertices, section >::TensorD >
-  DisplacementParticleSQCNI< nDim, nVertices, section >::getBoundaryVectorIntermediate( int boundaryFaceID ) const
-  {
-
-    TensorD N_dAY;
-    TensorD Y;
-
-    Eigen::Matrix< double, nDim, 1 > _Y_eigen;
-
-    // the evaluation point depends: For real SQCNI, we do it on the smoothing domain boundary, for all others we do in
-    // in the center of the deformed geometry
-
-    if ( _particleDomain.smoothingVolumeUpdateType ==
-         ParticleDomainType::SmoothingDomainUpdateType::DeformationGradient )
-      _Y_eigen = _particleDomain.getSmoothingDomainFaceCenterCoordinates( boundaryFaceID );
-    else
-      _Y_eigen = _particleDomain.getFaceCenterCoordinates( boundaryFaceID );
-
-    auto _N_dAY_eigen = _particleDomain.getFaceBoundaryVector( boundaryFaceID );
-
-    for ( int i = 0; i < nDim; i++ ) {
-      N_dAY[i] = _N_dAY_eigen[i];
-      Y[i]     = _Y_eigen[i];
-    }
-
-    if constexpr ( SectionIntegrals::isAxisymmetric )
-      N_dAY *= SectionIntegrals::weight( _Y_eigen );
-
-    return { N_dAY, Y };
   }
 
 } // namespace Marmot::Discretizations::Meshfree

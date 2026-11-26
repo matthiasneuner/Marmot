@@ -47,13 +47,11 @@ namespace Marmot::Discretizations::Meshfree {
    * On top of the smoothed gradients of GradientEnhancedFiniteStrainParticleSQCNI, the momentum residual receives the
    * NSNI stabilization term: the integrand is expanded to first order about the particle
    * center, and the second-order term of the integral is kept, with the second moments of the particle domain. The
-   * second derivatives of the shape functions are smoothed like the first ones, by the gradients at the face centers,
-   * @f[
-   *   \frac{\partial^2 N_B}{\partial Y_I\,\partial Y_J} \approx \frac{1}{2V_{\Omega_Y}} \sum_f \Bigl(
-   *   \frac{\partial N_B}{\partial Y_I}(\boldsymbol{Y}_f)\,n_J + \frac{\partial N_B}{\partial
-   * Y_J}(\boldsymbol{Y}_f)\,n_I \Bigr) dA_f
-   * @f]
-   * (symmetrized), and the Kirchhoff stress gradient along @f$ \boldsymbol{Y} @f$ is linearized as
+   * second derivatives of the shape functions are smoothed like the first ones, from the gradients at the points of
+   * the face rule of the section, @f$ \hat N_{B,IJ} @f$ over @f$ |\Omega_s| @f$ (ParticleSectionIntegrals, whose
+   * class description gives the formulas of both sections), and symmetrized,
+   * @f$ \partial^2 N_B / \partial Y_I\,\partial Y_J \approx (\hat N_{B,IJ} + \hat N_{B,JI}) / 2 @f$; the Kirchhoff
+   * stress gradient along @f$ \boldsymbol{Y} @f$ is linearized as
    * @f[
    *   \frac{\partial\tau_{ij}}{\partial Y_K} \approx \frac{\partial\tau_{ij}}{\partial\Delta F_{mM}}\,
    *   \frac{\partial^2\Delta x_m}{\partial Y_M\,\partial Y_K}, \qquad
@@ -85,9 +83,9 @@ namespace Marmot::Discretizations::Meshfree {
    * therefore has no stabilization contribution at all. The nonlocal rows are exact; the module test bounds the
    * error of the U-U block and does not check the U-N block for this particle.
    *
-   * For an axisymmetric particle, the second gradients are smoothed over the ring and the second moments are those of
-   * the ring (ParticleSectionIntegrals); the first-order terms of the ring's expansion are left out, see the page
-   * "Axisymmetric Particles" of the documentation.
+   * For an axisymmetric particle, the second moments are those of the ring (ParticleSectionIntegrals::secondMoments());
+   * the first-order terms of the ring's expansion are left out, see the page "Axisymmetric Particles" of the
+   * documentation.
    *
    * @tparam nDim      Spatial dimension (2: plane strain or axisymmetric, 3: 3D).
    * @tparam nVertices Number of vertices of the smoothing domain (4: Quad, 8: Hexa).
@@ -431,7 +429,11 @@ namespace Marmot::Discretizations::Meshfree {
       r_U = ( +einsum< i, ij >( dT_A_dx, S ) ) * V0;
 
       if constexpr ( ParentPointParticle::isAxisymmetric )
-        r_U( 0 ) += Hoop::force( T_A, this->radiusOfCenter(), _mp.outOfPlaneStretch(), _mp.response.tau33, V0 );
+        r_U( 0 ) += Hoop::force( T_A,
+                                 Hoop::radiusOfCenter( _mp ),
+                                 _mp.outOfPlaneStretchIncrement(),
+                                 _mp.response.tau33,
+                                 V0 );
 
       // add inertia
       r_U += density0 * a * T_A * V0;

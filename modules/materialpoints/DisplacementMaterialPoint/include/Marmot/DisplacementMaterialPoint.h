@@ -486,8 +486,8 @@ namespace Marmot::Discretizations::MaterialPoints {
    * the in-plane parts of @f$ \boldsymbol{\tau} @f$ and @f$ \partial\boldsymbol{\tau}/\partial\Delta\boldsymbol{F} @f$
    * are kept. The full 3D Kirchhoff stress is also written to the state "stress". The out-of-plane stretch
    * @f$ \Delta F_{33} @f$ of the increment is 1 in plane strain; an axisymmetric particle sets it to the hoop stretch
-   * increment (incrementOutOfPlaneStretch()), as for the axisymmetric elements, and uses the out-of-plane parts of the
-   * response and the tangents (Response::tau33, Tangents::outOfPlane).
+   * increment (addToOutOfPlaneStretchIncrement()), as for the axisymmetric elements, and uses the out-of-plane parts of
+   * the response and the tangents (Response::tau33, Tangents::outOfPlane).
    */
   class DisplacementMaterialPoint2D : public DisplacementMaterialPoint< 2 > {
 
@@ -509,20 +509,19 @@ namespace Marmot::Discretizations::MaterialPoints {
     void incrementDeformation( const TensorD& displacementIncrement, const TensorDD& displacementGradientIncrement );
 
     /**
-     * @brief Add to the out-of-plane stretch of the increment, @f$ \Delta F_{33} \mathrel{+}= \delta F_{33} @f$ (1
-     * after prepareYourself(), and in plane strain): the hoop stretch of an axisymmetric particle.
-     * @param[in] outOfPlaneStretchIncrement @f$ \delta F_{33} @f$, e.g. @f$ \Delta u_r / r @f$.
+     * @brief Add to the out-of-plane stretch increment, @f$ \Delta F_{33} \mathrel{+}= \delta @f$ (@f$ \Delta F_{33}
+     * @f$ is 1 after prepareYourself(), and stays 1 in plane strain): the hoop stretch increment of an axisymmetric
+     * particle.
+     * @param[in] delta @f$ \delta @f$, e.g. @f$ \Delta u_r / \bar r @f$.
      */
-    void incrementOutOfPlaneStretch( double outOfPlaneStretchIncrement )
-    {
-      state->dx_dY( 2, 2 ) += outOfPlaneStretchIncrement;
-    }
+    void addToOutOfPlaneStretchIncrement( double delta ) { state->dx_dY( 2, 2 ) += delta; }
 
     /**
-     * @brief The out-of-plane stretch of the increment.
+     * @brief The out-of-plane stretch increment, the 33 component of @f$ \Delta\boldsymbol{F} @f$ (not of
+     * @f$ \boldsymbol{F} @f$).
      * @return @f$ \Delta F_{33} @f$ (1 in plane strain, the hoop stretch increment of an axisymmetric particle).
      */
-    double outOfPlaneStretch() const { return state->dx_dY( 2, 2 ); }
+    double outOfPlaneStretchIncrement() const { return state->dx_dY( 2, 2 ); }
   };
 
   /**
